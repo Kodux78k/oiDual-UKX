@@ -1,0 +1,1742 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+  <meta charset="utf-8" />
+  <title>dual.Infodose — Fusion Unificado</title>
+
+  <link rel="manifest" href="./manifest.json">
+  <link rel="apple-touch-icon" href="./icon-192.png">
+  
+  <!-- ===== iOS / PWA: status bar translúcida + safe area ===== -->
+  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+  <meta name="apple-mobile-web-app-capable" content="yes">
+  <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+  <meta name="theme-color" content="transparent">
+
+  <!-- Fonts (Google) -->
+  <link href="https://fonts.googleapis.com/css2?family=Montserrat:wght@200;400;600;700;900&family=JetBrains+Mono:wght@400;700&display=swap" rel="stylesheet">
+
+  <!-- LIB LOADER (CDNs para garantir funcionamento imediato) -->
+  <script>
+    (function(){
+      const LIBS = [
+        { name:'lucide', check:()=>window.lucide, path:'https://unpkg.com/lucide@latest' },
+        { name:'html2canvas', check:()=>window.html2canvas, path:'https://cdnjs.cloudflare.com/ajax/libs/html2canvas/1.4.1/html2canvas.min.js' },
+        { name:'particles', check:()=>window.particlesJS || window.pJSDom, path:'https://cdn.jsdelivr.net/npm/particles.js@2.0.0/particles.min.js' }
+      ];
+
+      function loadScript(path){
+        return new Promise((res,rej)=>{
+          const s = document.createElement('script');
+          s.src = path; s.async = false;
+          s.onload = ()=>res();
+          s.onerror = ()=>rej(new Error('failed to load ' + path));
+          document.head.appendChild(s);
+        });
+      }
+
+      async function ensureLibs(){
+        for(const lib of LIBS){
+          try{
+            if(lib.check && lib.check()) continue;
+            await loadScript(lib.path);
+            await new Promise(r=>setTimeout(r,50));
+          }catch(e){ console.warn('Lib warning:', lib.name); }
+        }
+      }
+
+      document.documentElement.style.setProperty('--font-ui', "'Montserrat', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, 'Helvetica Neue', Arial, sans-serif");
+      document.documentElement.style.setProperty('--font-code', "'JetBrains Mono', ui-monospace, SFMono-Regular, Menlo, Monaco, 'Roboto Mono', monospace");
+
+      window.__ensureDualLibs = ensureLibs;
+      ensureLibs().then(()=>{ console.info('libs ensured'); }).catch(()=>{});
+    })();
+  </script>
+
+  <script>
+    if ('serviceWorker' in navigator) {
+      navigator.serviceWorker.register('./sw.js').catch(()=>{});
+    }
+  </script>
+
+  <style>
+    /* ====== Combined variables & base ====== */
+    :root{
+      /* Chat app vars */
+      --bg-dark: linear-gradient(to bottom,#000,#1a1a1a);
+      --text-dark:#fff; --primary:#111; --secondary:#5e5c5e;
+      --accent:#0ff; --fast:0.4s; --med:0.8s; --slow:1.8s;
+      /* Fusion vars */
+      --bg-deep:#030406; --glass-surface:rgba(18,18,22,0.65); --glass-border:rgba(255,255,255,0.06);
+      --neon-cyan:#00f2ff; --neon-purple:#bd00ff; --neon-gold:#ffd700; --neon-danger:#ff2a6d; --neon-success:#00ff9d;
+      --font-ui:'Montserrat',sans-serif; --font-code:'JetBrains Mono',monospace;
+      --ease-overshoot: cubic-bezier(0.34, 1.3, 0.64, 1);
+      --ease-smooth: cubic-bezier(0.23, 1, 0.32, 1);
+    }
+
+    *{box-sizing:border-box;margin:0;padding:0;-webkit-tap-highlight-color:transparent;outline:none;user-select:none}
+    html,body{height:100%;min-height:100vh}
+    
+    body{
+      font-family:var(--font-ui); color:var(--text-dark);
+      background-color: #000;
+      background-image:
+        linear-gradient(rgba(255,255,255,0.02) 1px, transparent 1px),
+        linear-gradient(90deg, rgba(255,255,255,0.02) 1px, transparent 1px),
+        var(--bg-dark); 
+      background-size: 50px 50px, 50px 50px, 100% 100%;
+      background-attachment: fixed;
+      padding:20px; overflow:hidden; display:flex; flex-direction:column; align-items:center;
+    }
+
+    /* ====== Particles / Ambient ====== */
+    #particles-js{position:fixed;inset:0;z-index:0;pointer-events:none; transition: opacity 0.5s ease;}
+    .ambient-light{position:fixed;inset:0;z-index:0;pointer-events:none; transition: opacity 0.5s ease;}
+    
+    .blob{position:absolute;border-radius:50%;filter:blur(100px);opacity:0.14;animation:float 25s infinite alternate ease-in-out}
+    .blob-1{width:60vw;height:60vw;background:var(--neon-cyan);top:-20%;left:-20%}
+    .blob-2{width:50vw;height:50vw;background:var(--neon-purple);bottom:-20%;right:-20%;animation-delay:-5s}
+    @keyframes float{0%{transform:translate(0,0)}100%{transform:translate(40px,60px)}}
+
+    /* ====== Chat Cinematográfico styles ====== */
+    .top-info {
+      position: fixed; top: 18px; left: 20px; z-index: 5;
+      background: rgba(0,0,0,0.35); padding: 8px 12px; border-radius: 12px; font-size: 0.9em;
+      backdrop-filter: blur(6px); border: 1px solid rgba(255,255,255,0.05);
+    }
+    .response-container{
+      position:fixed; left:20px; right:20px; bottom:160px;
+      padding:12px;background:rgba(0,0,0,0.4);backdrop-filter:blur(10px);
+      border-radius:20px; max-height:calc(100vh - 220px); overflow-y:auto; -webkit-overflow-scrolling:touch; z-index:4;
+      border: 1px solid rgba(255,255,255,0.05);
+    }
+    .page{display:none; opacity:0; transition:opacity var(--med) ease-in-out}
+    .page.active{display:block; opacity:1}
+    .page.initial{text-align:center;font-size:1.1em; color: rgba(255,255,255,0.8);}
+    
+    .response-controls{display:flex;justify-content:space-between;align-items:center;margin-top:15px;padding-top:10px;border-top:1px solid rgba(255,255,255,0.2)}
+    .control-buttons{display:flex;gap:10px;align-items:center}
+    .control-btn{background:rgba(255,255,255,0.05);padding:6px;border-radius:6px;cursor:pointer;transition:background var(--fast);display:flex;gap:6px;border:none;outline:none; color: #fff;}
+    .control-btn:hover{background:rgba(255,255,255,0.12)}
+    .control-btn svg { stroke: currentColor; fill: none; }
+    
+    /* Performance Button state */
+    .perf-active { color: var(--neon-gold); border: 1px solid rgba(255, 215, 0, 0.3); }
+    
+    .pagination{display:flex;align-items:center;gap:10px}
+    .pagination button{background:none;border:none;font-size:1.2em;color:#6fe4fb;cursor:pointer;transition:transform var(--fast)}
+    .pagination button:hover{transform:scale(1.2)}
+    
+    .response-block{
+      margin:1rem 0;padding:1.2rem;border-radius:12px;
+      animation:fadeIn var(--slow) ease forwards; transition:box-shadow var(--fast),transform var(--fast);
+      line-height:1.5;position:relative;cursor:pointer;overflow:hidden;animation:pulse 6s infinite ease-in-out;
+      background: linear-gradient(135deg, rgba(255,255,255,0.02), rgba(0,0,0,0.25));
+      border: 1px solid rgba(255,255,255,0.03);
+    }
+    .response-block h3{margin-bottom:12px; color: var(--accent);}
+    .response-block:hover{box-shadow:0 0 15px rgba(0,255,255,0.12)}
+    .response-block .meta { position:absolute; top:8px; right:8px; display:flex; gap:6px; }
+    .crystal-btn { background: rgba(0,0,0,0.25); border-radius:6px; padding:6px; cursor:pointer; border:none; color:var(--accent); }
+    .response-block.clicked{animation:clickPulse var(--med) ease-out}
+    .response-block.expanded{transform:scale(1.03); background:rgba(0,0,0,0.6); z-index:6}
+    .intro{background:linear-gradient(135deg,rgba(0,255,255,0.08),rgba(0,100,100,0.04));border-left:4px solid #0ff}
+    .middle{background:linear-gradient(135deg,rgba(255,255,255,0.02),rgba(50,50,50,0.06));border-left:4px solid rgba(255,255,255,0.2)}
+    .ending{background:linear-gradient(135deg,rgba(255,0,255,0.06),rgba(100,0,100,0.04));border-left:4px solid #f0f}
+    .footer-text{margin-top:12px;font-size:0.8em;text-align:center;font-style:italic; opacity: 0.7;}
+    
+    .input-container{position:fixed;left:20px;right:20px;bottom:90px;display:flex;gap:10px;z-index:5;max-width:calc(100% - 40px)}
+    .input-container input{flex:1;padding:15px;border:none;border-radius:20px;background:rgba(255,255,255,0.1);color:inherit;outline:none;font-size:16px;transition:background var(--fast); backdrop-filter: blur(5px); border: 1px solid rgba(255,255,255,0.1);}
+    .input-container input:focus{background:rgba(255,255,255,0.2)}
+    .input-container button{width:54px;height:54px;border:none;border-radius:50%;background:linear-gradient(45deg,var(--primary),var(--secondary));color:#fff;font-size:1.5em;cursor:pointer;display:flex;justify-content:center;align-items:center;animation:pulse 2s infinite ease-in-out;transition:transform var(--fast); border: 1px solid rgba(255,255,255,0.2); overflow:hidden;}
+    .input-container button:hover{transform:scale(1.1)}
+    
+    @keyframes pulse{0%,100%{transform:scale(1)}50%{transform:scale(1.02)}}
+    @keyframes fadeIn{from{opacity:0;transform:translateY(20px)}to{opacity:1;transform:translateY(0)}}
+    @keyframes clickPulse{0%,100%{opacity:1}50%{opacity:0.8}}
+
+    /* Settings + Toggle Panel + Crystal Modal */
+    .modal, .panel { position: fixed; inset: 0; display: none; z-index: 9998; justify-content:center; align-items:center; background: rgba(0,0,0,0.7); backdrop-filter: blur(5px); }
+    .modal.active, .panel.active { display:flex }
+    .box {
+      background:#1a1a1a;padding:20px;border-radius:12px;border:1px solid rgba(255,255,255,0.06);
+      width:90%;max-width:520px;box-shadow:0 8px 40px rgba(0,0,0,0.6); color:#fff;
+    }
+    .box h3{color:var(--accent);margin-bottom:8px}
+    .row{display:flex;gap:10px;align-items:center}
+    .col{display:flex;flex-direction:column;gap:8px}
+    .input-group label{font-size:0.85em;color:#aaa;margin-left:4px}
+    .input-group input[type="text"], .input-group input[type="password"], .input-group input[type="file"]{
+      width:100%;padding:10px;border-radius:8px;border:1px solid rgba(255,255,255,0.08);background:rgba(0,0,0,0.5);color:#fff;outline:none;
+    }
+    .settings-actions{display:flex;gap:10px;margin-top:12px}
+    .btn{padding:10px;border-radius:8px;border:none;cursor:pointer;font-weight:600}
+    .btn-prim{background:var(--accent);color:#000}
+    .btn-sec{background:rgba(255,255,255,0.08);color:#fff}
+    .small {font-size:0.85em;color:#bbb}
+    .crystal-list { max-height:300px; overflow:auto; display:flex; flex-direction:column; gap:8px }
+    .crystal-item { background: rgba(255,255,255,0.02); padding:8px; border-radius:8px; display:flex; justify-content:space-between; gap:8px; align-items:flex-start }
+    .crystal-item .actions { display:flex; gap:6px }
+
+    /* Mantra footer */
+    #mantra-toggle {
+      position: fixed;
+      bottom: 25px;
+      left: 50%;
+      transform: translateX(-50%);
+      z-index: 5;
+      background: rgba(15, 15, 15, 0.7);
+      backdrop-filter: blur(10px);
+      border: 1px solid rgba(255,255,255,0.06);
+      padding: 10px 24px;
+      border-radius: 100px;
+      cursor: pointer;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      box-shadow: 0 10px 40px rgba(0,0,0,0.6);
+      transition: all 0.6s cubic-bezier(0.16, 1, 0.3, 1);
+      min-width: 280px;
+    }
+    #mantra-toggle.collapsed { background: transparent; border-color: rgba(255, 215, 0, 0.3); padding: 10px 40px; }
+    #mantra-text { font-style: italic; color: #777; font-size: 0.85rem; white-space: nowrap; transition: all 0.4s ease; }
+    .fade-out { opacity: 0; transform: translateY(-5px); }
+    .fade-in { opacity: 0; transform: translateY(5px); }
+
+    /* Hide UI on zen mode */
+    body.zen-mode .response-container,
+    body.zen-mode .input-container,
+    body.zen-mode .top-info,
+    body.zen-mode .svg-container {
+      opacity: 0; pointer-events: none; filter: blur(12px); transition: all 0.6s ease;
+    }
+
+    /* ====== Fusion HUD / Card styles ====== */
+    .container{
+      position: absolute; inset:0; pointer-events:none;
+      display:flex; align-items:center; justify-content:center; perspective:1200px; z-index:10;
+    }
+    .fusion-card{
+      pointer-events:auto;
+      width:100%; max-width:440px;
+      background:var(--glass-surface); backdrop-filter:blur(30px); -webkit-backdrop-filter:blur(30px);
+      border:1px solid var(--glass-border); border-radius:36px; padding:30px 25px;
+      box-shadow:0 40px 100px rgba(0,0,0,0.8);
+      position:relative; opacity:0; transform:translateY(50px) scale(0.96);
+      display:flex; flex-direction:column; gap:8px;
+      transition: width 0.5s var(--ease-smooth), height 0.5s var(--ease-smooth), border-radius 0.5s var(--ease-smooth), transform 0.4s var(--ease-smooth), opacity 0.4s;
+      will-change: transform, width, height, border-radius, left, top;
+      touch-action: none;
+      z-index:99999 !important;
+    }
+    .fusion-card.active{opacity:1;transform:translateY(0) scale(1);}
+    
+    .fusion-card.closed{width:260px; padding:14px 16px; border-radius:22px;}
+    .fusion-card.closed .card-body { display: none; }
+
+    .fusion-card.orb{ position: fixed !important; width: 68px !important; height: 68px !important; padding:0 !important; border-radius:50% !important; align-items:center; justify-content:center; box-shadow:0 15px 40px rgba(0,0,0,0.6), 0 0 20px rgba(0,242,255,0.2); z-index:9999; cursor:grab }
+    .fusion-card.hud{ position: fixed !important; top: 12px !important; left: 50% !important; transform: translateX(-50%) !important; width: 92% !important; max-width:600px !important; height:64px !important; padding:0 16px !important; border-radius:99px !important; flex-direction:row; align-items:center; justify-content:space-between; box-shadow:0 10px 30px rgba(0,0,0,0.5); z-index:9999; }
+    
+    .card-header{display:flex;align-items:center;gap:15px;margin-bottom:18px; width:100%; cursor:pointer;}
+    .avatar-slot{width:64px;height:64px;border-radius:18px;overflow:hidden;opacity:0;transition:opacity 0.35s}
+    .avatar-slot.shown{opacity:1 !important;}
+    
+    .text-block{flex:1;display:flex;flex-direction:column;justify-content:center}
+    .greeting-row{font-size:1.5rem;line-height:1;display:flex;align-items:baseline;gap:6px;flex-wrap:wrap; white-space:nowrap; overflow:hidden; text-overflow:ellipsis;}
+    .txt-thin{font-weight:200;color:rgba(255,255,255,0.7)}
+    .txt-heavy{font-weight:600;color:#fff; max-width: 220px; display:inline-block; vertical-align:middle; font-size:1.05rem;}
+    
+    .brand-dual{font-size:2.2rem;font-weight:900;line-height:0.95;text-transform:uppercase;letter-spacing:-2px;margin-top:4px;background:linear-gradient(-45deg,#fff,var(--neon-cyan),var(--neon-purple),#fff);background-size:300%;-webkit-background-clip:text;-webkit-text-fill-color:transparent;animation:gradientFlow 4s ease infinite}
+    @keyframes gradientFlow{0%{background-position:0% 50%}50%{background-position:100% 50%}100%{background-position:0% 50%}}
+    
+    .card-body{display:flex;flex-direction:column;gap:12px}
+    .stagger-item{opacity:0;transform:translateY(15px);transition:opacity 0.4s ease, transform 0.4s var(--ease-overshoot)}
+    .content-visible .stagger-item{opacity:1;transform:translateY(0)}
+    
+    .cyber-input{width:100%;background:rgba(0,0,0,0.3);border:1px solid rgba(255,255,255,0.1);border-radius:16px;padding:16px 50px 16px 18px;color:#fff;font-family:var(--font-code);font-size:0.9rem; outline: none;}
+    .activation-pre{font-family:var(--font-code);white-space:pre-wrap;margin:0;padding:8px;background:rgba(0,0,0,0.12);border-radius:8px;border:1px dashed rgba(255,255,255,0.03);color:#fff;font-size:0.75rem}
+    
+    .small-preview{display:none;align-items:center;gap:10px;margin-top:8px;padding:8px 10px;border-radius:10px;background:rgba(255,255,255,0.02);border:1px solid rgba(255,255,255,0.03);font-family:var(--font-code);font-size:0.86rem;color:rgba(255,255,255,0.9);cursor:pointer;}
+    .small-preview .mini-avatar{width:30px;height:30px;border-radius:6px;flex-shrink:0;overflow:hidden;display:inline-flex;align-items:center;justify-content:center}
+    .small-preview .small-text{white-space:nowrap;overflow:hidden;text-overflow:ellipsis;max-width:calc(100% - 110px)}
+    .small-preview .ident-badge{margin-left:auto;font-weight:700;font-size:0.78rem;padding:4px 8px;border-radius:999px;background:rgba(255,255,255,0.03);color:rgba(255,255,255,0.9);border:1px solid rgba(255,255,255,0.02)}
+    
+    .trigger-btn{width:100%;padding:12px;border:1px dashed rgba(255,255,255,0.1);border-radius:12px;background:rgba(255,255,255,0.02);color:rgba(255,255,255,0.5);font-size:0.75rem;letter-spacing:2px;text-transform:uppercase;cursor:pointer;display:flex;justify-content:center;align-items:center;gap:8px}
+    
+    /* Stats grid */
+    .stats-grid { display: flex; justify-content: space-between; margin-top: 10px; }
+    .stat-box { display: flex; flex-direction: column; align-items: center; }
+    .stat-lbl { font-size: 0.6rem; color: rgba(255,255,255,0.4); letter-spacing: 1px; }
+    .stat-val { font-size: 0.85rem; font-weight: 700; color: #fff; margin-top: 4px; }
+    .progress-container { width: 100%; height: 4px; background: rgba(255,255,255,0.1); border-radius: 2px; overflow: hidden; position: relative; }
+    .bar-meta { display: flex; justify-content: space-between; font-size: 0.65rem; color: rgba(255,255,255,0.5); margin-bottom: 4px; }
+    .bar-fill { height: 100%; background: var(--neon-cyan); width: 0%; transition: width 1s linear; }
+
+    .toaster-wrap{position:fixed;right:20px;bottom:20px;z-index:99999;display:flex;flex-direction:column;gap:8px;pointer-events:none}
+    .toaster{pointer-events:auto;background:linear-gradient(180deg,#0b1220,#071018);border:1px solid rgba(255,255,255,0.06);padding:10px 14px;border-radius:10px;box-shadow:0 18px 40px rgba(0,0,0,0.6);font-family:var(--font-ui);font-size:0.95rem;opacity:0;transform:translateY(8px);transition:all 260ms var(--ease-smooth); color: #fff;}
+    .toaster.show{opacity:1;transform:translateY(0)}
+    .toaster.error{border-color:var(--neon-danger);color:var(--neon-danger)}
+    .toaster.success{border-color:var(--neon-success);color:var(--neon-success)}
+
+    /* Keys modal */
+    .modal-overlay{position:fixed;inset:0;background:rgba(0,0,0,0.65);display:none;align-items:center;justify-content:center;z-index:99998;backdrop-filter:blur(8px)}
+    .keys-card{width:90%;max-width:760px;background:linear-gradient(180deg,#071018,#0b1220);border:1px solid rgba(255,255,255,0.08);padding:20px;border-radius:16px;color:var(--text);box-shadow:0 20px 50px rgba(0,0,0,0.8);max-height:90vh;display:flex;flex-direction:column}
+    .key-list{flex:1;overflow-y:auto;display:flex;flex-direction:column;gap:8px;padding-right:6px;min-height:100px; margin: 15px 0;}
+    .key-item{display:flex;align-items:center;gap:8px;padding:12px;border-radius:10px;background:rgba(255,255,255,0.02);border:1px solid rgba(255,255,255,0.02); justify-content: space-between;}
+    .key-item.active-item{background:rgba(0, 242, 255, 0.05);border-color:rgba(0, 242, 255, 0.2)}
+    .small-btn{background:rgba(255,255,255,0.03);border:1px solid rgba(255,255,255,0.1);padding:6px 10px;border-radius:8px;color:#fff;cursor:pointer;font-size:0.75rem;text-transform:uppercase;font-weight:600;transition:0.2s}
+    .small-btn.active-btn{background:var(--neon-success);color:#000;border:none}
+    .small-btn.danger{ color: var(--neon-danger); border-color: rgba(255,42,109,0.3); }
+    .form-grid{display: grid; grid-template-columns: 1fr 1fr; gap: 8px; margin-bottom: 8px;}
+    .form-row{display: flex; gap: 8px;}
+    .form-section input { width: 100%; padding: 10px; background: rgba(0,0,0,0.3); border: 1px solid rgba(255,255,255,0.1); border-radius: 8px; color: #fff; outline: none; }
+
+    /* Activation Card */
+    .activation-hidden { display: none; }
+    .activation-open { display: block; animation: fadeIn 0.3s ease; }
+    .activation-toggle { cursor: pointer; padding: 10px; background: rgba(255,255,255,0.05); border-radius: 12px; margin-bottom: 8px; display: flex; align-items: center; }
+    .activation-card { padding: 12px; background: rgba(0,0,0,0.2); border-radius: 12px; margin-top: 8px; }
+    .activation-controls { display: flex; gap: 8px; margin-top: 8px; }
+
+    /* Responsive */
+    @media (max-width:640px){
+      .box{max-width:92%}
+      .form-grid{grid-template-columns:1fr}
+    }
+  </style>
+</head>
+<body>
+
+  <!-- ALERT OVERRIDE (For Preview Safety) -->
+  <script>
+    const originalAlert = window.alert;
+    window.alert = function(msg) {
+        if(typeof showToaster === 'function') {
+            showToaster(msg, 'default');
+        } else {
+            console.log("ALERT:", msg);
+            const d = document.createElement('div');
+            d.style.cssText = "position:fixed;top:20px;left:50%;transform:translateX(-50%);background:rgba(10,10,15,0.95);color:#fff;padding:12px 24px;border-radius:99px;z-index:999999;border:1px solid rgba(255,255,255,0.1);box-shadow:0 5px 20px rgba(0,0,0,0.5);font-family:sans-serif;font-size:0.9rem;pointer-events:none;animation:fadeIn 0.3s ease;";
+            d.textContent = msg;
+            document.body.appendChild(d);
+            setTimeout(()=> { d.style.opacity='0'; setTimeout(()=>d.remove(),300) }, 3000);
+        }
+    };
+  </script>
+
+  <!-- PARTICLES + AMBIENT BLOBS -->
+  <div id="particles-js"><canvas class="particles-js-canvas-el"></canvas></div>
+  <div class="ambient-light" id="ambientLight"><div class="blob blob-1"></div><div class="blob blob-2"></div></div>
+
+  <!-- TOP INFO (chat) -->
+  <div class="top-info" id="topInfo" style="z-index:5">
+    <span id="displayUser">User: —</span> · <span id="displayInfodose">Infodose: —</span>
+  </div>
+
+  <!-- RESPONSE container (chat) -->
+  <div class="response-container" id="response" style="z-index:4">
+    <div class="page initial active">
+      <strong>Clique no ◉ e diga “Oi, Dual”.</strong><br>
+      <em>Sempre único. Sempre seu.</em>
+    </div>
+
+    <div class="response-controls">
+      <div class="control-buttons">
+        <button class="control-btn copy-button" title="Copiar tudo">
+          <svg viewBox="0 0 24 24" width="20" stroke-width="2"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"></rect><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"></path></svg>
+        </button>
+        <button class="control-btn paste-button" title="Colar">
+           <svg viewBox="0 0 24 24" width="20" stroke-width="2"><path d="M16 4h2a2 2 0 0 1 2 2v14a2 2 0 0 1-2 2H6a2 2 0 0 1-2-2V6a2 2 0 0 1 2-2h2"></path><rect x="8" y="2" width="8" height="4" rx="1" ry="1"></rect></svg>
+        </button>
+        <!-- PERFORMANCE BUTTON -->
+        <button id="perfBtn" class="control-btn" title="Modo Performance (On/Off)">
+          <svg viewBox="0 0 24 24" width="20" height="20" stroke="currentColor" fill="none" stroke-width="2"><polygon points="13 2 3 14 12 14 11 22 21 10 12 10 13 2"></polygon></svg>
+        </button>
+        <button id="toggleBtn" class="control-btn toggle-button" title="Painel & Configurações">
+          <svg viewBox="0 0 24 24" width="20" height="20" stroke="currentColor" fill="none" stroke-width="2"><circle cx="12" cy="12" r="3"></circle><path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 0 1 0 2.83 2 2 0 0 1-2.83 0l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-2 2 2 2 0 0 1-2-2v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 0 1-2.83 0 2 2 0 0 1 0-2.83l.06-.06a1.65 1.65 0 0 0 .33-1.82 1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1-2-2 2 2 0 0 1 2-2h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 0 1 0-2.83 2 2 0 0 1 2.83 0l.06.06a1.65 1.65 0 0 0 1.82.33H9a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 2-2 2 2 0 0 1 2 2v.09a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 2 2 2 2 0 0 1-2 2h-.09a1.65 1.65 0 0 0-1.51 1z"></path></svg>
+        </button>
+        <button id="crystalBtn" class="control-btn" title="Cristalizados">
+          <svg viewBox="0 0 24 24" width="20" height="20" stroke="currentColor" fill="none" stroke-width="2"><path d="M12 2l2.9 6.3L21 10l-5 3.6L17.8 21 12 17.7 6.2 21 7 13.6 2 10l6.1-1.7L12 2z"></path></svg>
+        </button>
+      </div>
+
+      <div class="pagination">
+        <button data-action="prev">⟵</button>
+        <span id="pageIndicator">1 / 1</span>
+        <button data-action="next">⟶</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- INPUT (chat) -->
+  <div class="input-container" style="z-index:5">
+    <input id="userInput" type="text" placeholder="Diga: 'oi, Dual'...">
+    <button id="sendBtn" title="Enviar">➤</button>
+    <!-- Rec Button (Emoji) -->
+    <button id="voiceBtn" title="Falar" aria-label="Falar" style="font-size:24px; line-height:1; display:flex; align-items:center; justify-content:center;">🔘</button>
+  </div>
+
+  <!-- Unified Panel (Toggle + Settings) -->
+  <div id="togglePanel" class="panel">
+    <div class="box">
+      <h3>Painel Infodose & Configurações</h3>
+      <div class="row">
+        <div style="flex:1" class="col">
+          <label class="small">Usuário</label>
+          <input type="text" id="userNameInput" placeholder="Seu nome..." />
+        </div>
+        <div style="flex:1" class="col">
+          <label class="small">Nome da Infodose</label>
+          <input type="text" id="infodoseNameInput" placeholder="Ex: World System — Alpha" />
+        </div>
+      </div>
+
+      <div style="margin-top:10px" class="col">
+        <label class="small">Treinamento (World System) — Upload / Export</label>
+        <input type="file" id="trainingUpload" accept=".txt" />
+        <div style="display:flex; gap:8px; margin-top:8px;">
+          <button id="importTrainingBtn" class="btn btn-sec">Importar (ler)</button>
+          <button id="exportTrainingBtn" class="btn btn-prim">Exportar treino</button>
+        </div>
+        <div id="trainingFileName" class="small" style="margin-top:6px;color:#9bd">Nenhum arquivo carregado</div>
+      </div>
+
+      <div style="margin-top:12px; display:flex; gap:8px; align-items:center;">
+        <label class="small" style="flex:1">Infodose ativa</label>
+        <input type="checkbox" id="assistantActiveCheckbox" />
+        <label class="small" style="flex:1">Treinamento ativo</label>
+        <input type="checkbox" id="trainingActiveCheckbox" />
+      </div>
+
+      <!-- Merged Neural Config -->
+      <hr style="border:0; border-top:1px solid rgba(255,255,255,0.1); margin:15px 0;">
+      <h3 style="font-size:1rem; color:var(--accent)">Conexão Neural (LLM)</h3>
+      <div class="col">
+        <div class="input-group">
+          <label>OpenRouter API Key (SK)</label>
+          <input type="password" id="apiKeyInputPanel" placeholder="sk-or-..." autocomplete="off">
+        </div>
+        <div class="input-group">
+          <label>Modelo AI</label>
+          <input type="text" id="modelInputPanel" placeholder="ex: meta-llama/llama-3.1-405b-instruct:free">
+        </div>
+      </div>
+
+      <div style="margin-top:15px; display:flex; gap:8px;">
+        <button id="savePanelBtn" class="btn btn-prim" style="flex:1">Salvar Tudo</button>
+        <button id="closePanelBtn" class="btn btn-sec">Fechar</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- Crystal modal (chat) -->
+  <div id="crystalModal" class="modal">
+    <div class="box">
+      <h3>Cristalizados</h3>
+      <div class="row" style="margin-bottom:8px">
+        <button id="exportAllCrystal" class="btn btn-prim">Exportar todos</button>
+        <button id="clearAllCrystal" class="btn btn-sec">Limpar tudo</button>
+      </div>
+      <div class="crystal-list" id="crystalList"></div>
+      <div style="margin-top:12px;display:flex;justify-content:flex-end;gap:8px">
+        <button id="closeCrystal" class="btn btn-sec">Fechar</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- MANTRA FOOTER -->
+  <div id="mantra-toggle" style="z-index:5">
+    <span id="mantra-text">
+      Do seu jeito. <strong>Sempre</strong> único. <strong>Sempre</strong> seu.
+    </span>
+  </div>
+
+  <!-- Fusion HUD Card -->
+  <div class="container">
+    <div class="fusion-card closed" id="mainCard" role="application" aria-label="Fusion HUD">
+      <div class="card-header" id="cardHeader">
+        <div class="avatar-slot" id="avatarTarget" title="Gerenciar Chaves"></div>
+        <div class="text-block">
+          <div class="greeting-row">
+            <span class="txt-thin" id="lblHello">Oi,</span>
+            <span class="txt-heavy" id="lblName">Convidado</span>
+          </div>
+          <div class="brand-dual">DUAL</div>
+        </div>
+        <div class="clock-widget">
+          <div class="time-display" id="clockTime" style="font-family: var(--font-code); color:var(--neon-cyan);">00:00</div>
+          <span class="status-led" style="font-size:0.6rem; letter-spacing:1px; color:rgba(255,255,255,0.4)">ONLINE</span>
+        </div>
+      </div>
+
+      <div class="small-preview" id="smallPreview" title="Gerenciar Chaves">
+        <div class="mini-avatar" id="smallMiniAvatar"></div>
+        <div class="small-text" id="smallText">Aguardando ativação...</div>
+        <div class="ident-badge" id="smallIdent">--</div>
+      </div>
+
+      <div class="card-body" id="cardBody">
+        <div class="input-wrapper stagger-item">
+          <input type="text" class="cyber-input" id="inputUser" placeholder="Identifique-se..." autocomplete="off" />
+        </div>
+
+        <div class="activation-wrap stagger-item">
+          <div class="activation-toggle" onclick="toggleActivation()">
+            <div style="display:flex;align-items:center;gap:8px">
+              <div style="width:10px;height:10px;border-radius:99px;background:var(--neon-cyan)"></div>
+              <strong style="letter-spacing:1px;font-size:0.9rem">Ativação ASCII</strong>
+            </div>
+            <div style="margin-left:auto;font-size:0.82rem;color:rgba(255,255,255,0.6)">BASE v1</div>
+          </div>
+          <div id="activationCard" class="activation-card activation-hidden">
+            <div style="display:flex;align-items:flex-start;gap:10px">
+              <div style="display:flex;align-items:center;gap:8px">
+                <div class="mini-avatar" id="actMiniAvatar"></div>
+                <div><div style="font-weight:700">CÉREBRO</div><div style="font-size:0.78rem;opacity:0.6"><span id="actName">User</span></div></div>
+              </div>
+              <div class="activation-badge" id="actBadge" style="margin-left:auto; font-size:0.7rem; color: #888;">v:--</div>
+            </div>
+            <pre id="actPre" class="activation-pre">Carregando...</pre>
+            <div class="activation-controls">
+              <button class="trigger-btn" id="copyActBtn">COPIAR</button>
+              <button class="trigger-btn" id="downloadActBtn">PNG</button>
+            </div>
+          </div>
+        </div>
+
+        <div class="stagger-item">
+          <div class="stats-grid">
+            <div class="stat-box"><span class="stat-lbl">LATÊNCIA</span><span class="stat-val">12ms</span></div>
+            <div class="stat-box"><span class="stat-lbl">SEGURANÇA</span><span class="stat-val" id="securityStatus">ABERTO</span></div>
+            <div class="stat-box"><span class="stat-lbl">RITMO</span><span class="stat-val">BETA</span></div>
+          </div>
+          <div class="progress-container" style="margin-top:12px">
+            <div class="bar-meta"><span>CICLO DIÁRIO</span><span id="cyclePercent">0%</span></div>
+            <div class="bar-track"><div class="bar-fill" id="cycleFill"></div></div>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- Toaster -->
+  <div class="toaster-wrap" id="toasterWrap"></div>
+
+  <!-- Keys Modal (fusion) -->
+  <div id="keysModal" class="modal-overlay" aria-hidden="true">
+    <div class="keys-card" role="dialog">
+      <div class="keys-header" style="display:flex; justify-content:space-between; align-items:flex-start;">
+        <div>
+          <div id="keysTitle" style="font-weight:800;font-size:1.1rem;color:var(--neon-cyan)">USER KEYS MANAGER</div>
+          <div style="color:rgba(255,255,255,0.6);font-size:0.85rem">Gerencie suas ESK Keys com segurança local.</div>
+        </div>
+        <button id="closeKeysBtn" class="small-btn">X</button>
+      </div>
+
+      <div class="key-list" id="keyList"></div>
+
+      <div class="form-section">
+        <div class="form-grid">
+          <input id="keyNameInput" placeholder="Nome da chave (ex: Principal)" />
+          <input id="keyTokenInput" type="password" placeholder="Token / ESK (Opcional)" />
+        </div>
+        <div class="form-row">
+          <input id="keyWebhookInput" placeholder="Webhook URL (https://...)" style="flex:1" />
+          <button id="testWebhookBtn" class="small-btn" title="Testar Conexão">PING</button>
+        </div>
+        <button id="addKeyBtn" class="small-btn" style="width:100%;margin-top:8px;background:rgba(255,255,255,0.1)">ADICIONAR CHAVE</button>
+      </div>
+
+      <div style="display:flex;gap:8px;justify-content:space-between;margin-top:15px;border-top:1px solid rgba(255,255,255,0.05);padding-top:12px">
+        <div style="font-size:0.7rem;color:rgba(255,255,255,0.4);display:flex;align-items:center;gap:5px">
+          <i data-lucide="shield-check" style="width:14px"></i> <span id="vaultStatusText">Cofre Aberto</span>
+        </div>
+        <div style="display:flex;gap:8px">
+          <button id="lockVaultBtn" class="small-btn danger">BLOQUEAR</button>
+          <button id="exportKeysBtn" class="small-btn">Export</button>
+          <button id="importKeysBtn" class="small-btn">Import</button>
+          <input id="importFileInput" type="file" accept="application/json" style="display:none" />
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- Vault Modal -->
+  <div id="vaultModal" class="modal-overlay" aria-hidden="true">
+    <div class="keys-card">
+      <div class="vault-icon" style="text-align:center; margin-bottom:10px;"><i data-lucide="lock" style="width:32px;height:32px; color:var(--neon-gold)"></i></div>
+      <h3 style="margin:0 0 10px 0;font-weight:800; text-align:center;">ACESSO AO COFRE</h3>
+      <p style="margin:0 0 15px 0;font-size:0.9rem;color:rgba(255,255,255,0.6); text-align:center;">Seus dados estão criptografados. Digite a senha para desbloquear.</p>
+      <input type="password" id="vaultPassInput" class="cyber-input" style="text-align:center;margin-bottom:12px" placeholder="Senha..." />
+      <div style="display:flex;gap:8px;justify-content:center">
+         <button id="vaultCancelBtn" class="small-btn">Cancelar</button>
+         <button id="vaultUnlockBtn" class="small-btn active-btn">DESBLOQUEAR</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- Scripts: Chat (keeps globals expected by sync patch) -->
+  <script>
+    /* ---------- Constantes iniciais (Chat module - globals intentionally) ---------- */
+    const TRAINING_FILE_FALLBACK = 'Super_Treinamento_Universal_Dual_Infodose_v1-28.txt';
+    const API_ENDPOINT = 'https://openrouter.ai/api/v1/chat/completions';
+    const TEMPERATURE = 0.2;
+
+    // estado (global; sync patch depends on these names)
+    let training = '';
+    let trainingFileName = '';
+    let assistantEnabled = false;
+    let trainingActive = true; // se false, não inclui 'system' no conversation
+    let conversation = [];
+    let pages = [], currentPage = 0, autoAdvance = true;
+
+    // configs persistidas (globals)
+    let apiKey = localStorage.getItem('di_apiKey') || '';
+    let modelName = localStorage.getItem('di_modelName') || 'meta-llama/llama-3.1-405b-instruct:free';
+    let userName = localStorage.getItem('di_userName') || '';
+    let infodoseName = localStorage.getItem('di_infodoseName') || '';
+    const CRYSTAL_KEY = 'di_cristalizados';
+
+    const createEl = (tag, cls, html) => { const e = document.createElement(tag); if (cls) e.className = cls; if (html) e.innerHTML = html; return e; };
+    const splitBlocks = text => {
+      if (!text || !text.trim()) return [['Sem conteúdo de treinamento.','','']];
+      let paras = text.split(/\n\s*\n/).filter(p=>p.trim());
+      if (paras.length % 3 !== 0) {
+        const sens = paras.join(' ').match(/[^\.!\?]+[\.!\?]+/g) || [paras.join(' ')];
+        paras = sens.map(s=>s.trim());
+      }
+      const groups = [];
+      for (let i=0;i<paras.length;i+=3) groups.push(paras.slice(i,i+3));
+      return groups;
+    };
+
+    // TTS
+    const speakText = (txt, onend)=> {
+      if (!txt) { if (onend) onend(); return; }
+      const u = new SpeechSynthesisUtterance(txt);
+      u.lang = 'pt-BR'; u.rate = 0.99; u.pitch = 1.1; u.volume = 1;
+      if (window._vozes) u.voice = window._vozes.find(v=>v.lang==='pt-BR') || window._vozes[0];
+      if (onend) u.onend = onend;
+      speechSynthesis.speak(u);
+    };
+
+    const updateTopInfo = () => {
+      const du = document.getElementById('displayUser');
+      const di = document.getElementById('displayInfodose');
+      if (du) du.innerText = 'User: ' + (userName || '—');
+      if (di) di.innerText = 'Infodose: ' + (infodoseName || '—');
+    };
+
+    const updateToggleUI = () => {
+      const tb = document.getElementById('toggleBtn');
+      if (tb) tb.classList.toggle('active', assistantEnabled);
+      const as = document.getElementById('assistantActiveCheckbox');
+      const tr = document.getElementById('trainingActiveCheckbox');
+      if (as) as.checked = !!assistantEnabled;
+      if (tr) tr.checked = !!trainingActive;
+    };
+
+    async function loadInitialTraining() {
+      const localTraining = localStorage.getItem('di_trainingText');
+      const localFileName = localStorage.getItem('di_trainingFileName') || '';
+      if (localTraining) {
+        training = localTraining;
+        trainingFileName = localFileName;
+        const tf = document.getElementById('trainingFileName');
+        if (tf) tf.innerText = localFileName || 'treinamento (local)';
+        return;
+      }
+      try {
+        const r = await fetch(TRAINING_FILE_FALLBACK);
+        if (r.ok) {
+          training = await r.text();
+          trainingFileName = TRAINING_FILE_FALLBACK;
+          const tf = document.getElementById('trainingFileName');
+          if (tf) tf.innerText = TRAINING_FILE_FALLBACK;
+        }
+      } catch (e) { /* silent */ }
+    }
+
+    const renderPaginatedResponse = text => {
+      speechSynthesis.cancel();
+      autoAdvance = true;
+      const respEl = document.getElementById('response');
+      if (!respEl) return;
+      respEl.querySelectorAll('.page:not(.initial)').forEach(p=>p.remove());
+      pages = [];
+      const groups = splitBlocks(text);
+      const controls = respEl.querySelector('.response-controls');
+      const titles = ['🎁 Recompensa Inicial','👁️ Exploração e Curiosidade','⚡ Antecipação Vibracional'];
+
+      groups.forEach((tris, gi) => {
+        const page = createEl('div', gi===0?'page active':'page');
+        tris.forEach((body, j) => {
+          const cls = j===0?'intro': j===1?'middle':'ending';
+          const b = createEl('div','response-block '+cls,`
+            <h3>${titles[j]}</h3><p>${body}</p>
+          `);
+          const meta = createEl('div','meta');
+          const crystalBtn = createEl('button','crystal-btn','✶');
+          crystalBtn.title = 'Cristalizar essa mensagem';
+          crystalBtn.addEventListener('click', (ev)=>{
+            ev.stopPropagation();
+            cristalizar({ title: titles[j], content: body });
+            crystalBtn.innerText = '✓';
+            setTimeout(()=> crystalBtn.innerText = '✶', 1200);
+          });
+          meta.appendChild(crystalBtn);
+          b.appendChild(meta);
+
+          b.dataset.state = '';
+          b.addEventListener('click', () => {
+            if (!b.dataset.state) {
+              speechSynthesis.cancel();
+              speakText(body);
+              b.classList.add('clicked');
+              b.dataset.state = 'spoken';
+            } else {
+              b.classList.add('expanded');
+              b.dataset.state = '';
+              if (!assistantEnabled) {
+                assistantEnabled = true;
+                localStorage.setItem('di_assistantEnabled','1');
+                if (training && trainingActive) conversation.unshift({ role:'system', content: training });
+                updateToggleUI();
+              }
+              const blockText = `${titles[j]}\n\n${body}`;
+              showLoading('Pulso em Expansão...');
+              speechSynthesis.cancel();
+              speakText('Pulso em Expansão...');
+              conversation.push({ role:'user', content: blockText });
+              callAI();
+            }
+          });
+          b.addEventListener('animationend', e => { if (e.animationName==='clickPulse') b.classList.remove('clicked'); });
+          page.appendChild(b);
+        });
+        page.appendChild(createEl('p','footer-text',`<em>Do seu jeito. <strong>Sempre</strong> único. <strong>Sempre</strong> seu.</em>`));
+        if (controls) respEl.insertBefore(page, controls);
+        pages.push(page);
+      });
+
+      currentPage = 0;
+      const pi = document.getElementById('pageIndicator');
+      if (pi) pi.textContent = `1 / ${pages.length}`;
+      speakPage(0);
+    };
+
+    const speakPage = i => {
+      const page = pages[i];
+      if (!page) return;
+      const body = Array.from(page.querySelectorAll('.response-block p')).map(p=>p.innerText).join(' ');
+      speakText(body, () => {
+        if (!autoAdvance) return;
+        if (i < pages.length - 1) {
+          changePage(1);
+          speakPage(i+1);
+        } else {
+          speakText('Do seu jeito, sempre único, sempre seu.');
+        }
+      });
+    };
+    const changePage = offset => {
+      const np = currentPage + offset;
+      if (np<0||np>=pages.length) return;
+      pages[currentPage].classList.remove('active');
+      pages[np].classList.add('active');
+      currentPage = np;
+      const pi = document.getElementById('pageIndicator');
+      if (pi) pi.textContent = `${currentPage+1} / ${pages.length}`;
+    };
+
+    const showLoading = msg => {
+      const respEl = document.getElementById('response');
+      const controls = respEl.querySelector('.response-controls');
+      respEl.querySelectorAll('.page:not(.initial)').forEach(p=>p.remove());
+      const page = createEl('div','page active');
+      page.appendChild(createEl('p','footer-text',msg));
+      if (controls) respEl.insertBefore(page, controls);
+      pages = [page];
+      currentPage = 0;
+      const pi = document.getElementById('pageIndicator');
+      if (pi) pi.textContent = '…';
+    };
+
+    // ===== PATCHED callAI: prioriza key ativa do HUD, aceita webhook fallback
+    async function callAI() {
+      // prioridade: key ativa em STATE.keys -> fallback di_apiKey -> fallback apiKey var
+      const active = (typeof STATE !== 'undefined' && Array.isArray(STATE.keys)) ? STATE.keys.find(k=>k.active) : null;
+      const token = active?.token || localStorage.getItem('di_apiKey') || apiKey || '';
+      const webhook = active?.webhook || '';
+
+      if (!token && !webhook) {
+        alert('Por favor, configure sua API Key no botão de configurações ou ative uma key no HUD.');
+        const sModal = document.getElementById('settingsModal'); if (sModal) sModal.classList.add('active');
+        return;
+      }
+
+      const bodyObj = { model: modelName, messages: [] , temperature: TEMPERATURE };
+      if (assistantEnabled && trainingActive && training) bodyObj.messages.push({ role:'system', content: training });
+      conversation.forEach(m => { if (m.role !== 'system') bodyObj.messages.push(m); });
+
+      try {
+        let resp;
+        if (webhook) {
+          // webhook: envia direto pro webhook (espera que o webhook reencaminhe pro LLM e retorne objeto compatível)
+          resp = await fetch(webhook, { method:'POST', headers:{ 'Content-Type':'application/json' }, body: JSON.stringify(bodyObj) });
+        } else {
+          const headers = { 'Authorization': `Bearer ${token}`, 'Content-Type': 'application/json' };
+          resp = await fetch(API_ENDPOINT, { method:'POST', headers, body: JSON.stringify(bodyObj) });
+        }
+
+        if (!resp.ok) throw new Error('Erro API: ' + resp.status);
+        const data = await resp.json();
+        // tenta interpretar retorno comum (OpenRouter / OpenAI alike)
+        const answer = (data.choices && data.choices[0] && data.choices[0].message && data.choices[0].message.content)
+          ? data.choices[0].message.content.trim()
+          : (data.result || data.output?.[0]?.content || JSON.stringify(data).slice(0,120) || 'Resposta vazia');
+        conversation.push({ role:'assistant', content: answer });
+        renderPaginatedResponse(answer);
+      } catch (err) {
+        console.error(err);
+        const errorMsg = 'O pulso oscilou (Erro de Conexão ou Key inválida). Verifique as configurações.';
+        conversation.push({ role:'assistant', content: errorMsg });
+        renderPaginatedResponse(errorMsg);
+      }
+    }
+
+    async function sendMessage(){
+      const respEl = document.getElementById('response');
+      const initPage = respEl ? respEl.querySelector('.page.initial') : null;
+      if (initPage) initPage.remove();
+
+      const input = document.getElementById('userInput');
+      const raw = input ? input.value.trim() : '';
+      if (!raw) return;
+      if (input) input.value = '';
+
+      speechSynthesis.cancel();
+      speakText('');
+
+      const txt = raw.toLowerCase();
+      if (txt === 'oi dual' || txt === 'oi, dual') {
+        assistantEnabled = true;
+        localStorage.setItem('di_assistantEnabled','1');
+        showLoading('Dual Infodose ativa. Pulso enviado...');
+        if (training && trainingActive) conversation.unshift({ role:'system', content: training });
+        updateToggleUI();
+      } else {
+        showLoading('⚡Pulso enviado...Recebendo Intenção…');
+      }
+
+      conversation.push({ role:'user', content: raw });
+      callAI();
+    }
+
+    function cristalizar({ title, content }) {
+      const list = JSON.parse(localStorage.getItem(CRYSTAL_KEY) || '[]');
+      const item = {
+        id: Date.now(),
+        title: title,
+        content: content,
+        user: userName || '—',
+        infodose: infodoseName || '—',
+        at: new Date().toISOString()
+      };
+      list.unshift(item);
+      localStorage.setItem(CRYSTAL_KEY, JSON.stringify(list));
+      refreshCrystalList();
+    }
+
+    function refreshCrystalList() {
+      const list = JSON.parse(localStorage.getItem(CRYSTAL_KEY) || '[]');
+      const el = document.getElementById('crystalList');
+      if (!el) return;
+      el.innerHTML = '';
+      if (!list.length) {
+        el.innerHTML = '<div class="small">Nenhum cristalizado ainda.</div>';
+        return;
+      }
+      list.forEach(it => {
+        const row = createEl('div','crystal-item');
+        const left = createEl('div','','<strong>'+ (it.title||'—') +'</strong><div class="small">'+(it.infodose || '')+' · '+(new Date(it.at)).toLocaleString()+'</div><div style="margin-top:6px">'+ (it.content.length>220 ? it.content.slice(0,220)+'...' : it.content) +'</div>');
+        const actions = createEl('div','actions');
+        const copyBtn = createEl('button','btn btn-sec','Copiar');
+        copyBtn.addEventListener('click', ()=> { navigator.clipboard.writeText(it.content); });
+        const exportBtn = createEl('button','btn btn-prim','Exportar');
+        exportBtn.addEventListener('click', ()=> {
+          const blob = new Blob([it.content], { type:'text/plain;charset=utf-8' });
+          const url = URL.createObjectURL(blob);
+          const a = document.createElement('a'); a.href = url; a.download = `cristal_${it.id}.txt`; a.click(); URL.revokeObjectURL(url);
+        });
+        const delBtn = createEl('button','btn btn-sec','Apagar');
+        delBtn.addEventListener('click', () => {
+          const arr = JSON.parse(localStorage.getItem(CRYSTAL_KEY) || '[]').filter(x => x.id !== it.id);
+          localStorage.setItem(CRYSTAL_KEY, JSON.stringify(arr));
+          refreshCrystalList();
+        });
+        actions.appendChild(copyBtn); actions.appendChild(exportBtn); actions.appendChild(delBtn);
+        row.appendChild(left); row.appendChild(actions);
+        el.appendChild(row);
+      });
+    }
+
+    // Unified Panel Setup
+    function setupTogglePanel() {
+      const panel = document.getElementById('togglePanel');
+      const btn = document.getElementById('toggleBtn');
+      const closeBtn = document.getElementById('closePanelBtn');
+      const saveBtn = document.getElementById('savePanelBtn');
+      
+      const userInput = document.getElementById('userNameInput');
+      const infodoseInput = document.getElementById('infodoseNameInput');
+      const assistantChk = document.getElementById('assistantActiveCheckbox');
+      const trainingChk = document.getElementById('trainingActiveCheckbox');
+      
+      const fileInput = document.getElementById('trainingUpload');
+      const importBtn = document.getElementById('importTrainingBtn');
+      const exportBtn = document.getElementById('exportTrainingBtn');
+      
+      // New fields from Settings
+      const apiKeyInput = document.getElementById('apiKeyInputPanel');
+      const modelInput = document.getElementById('modelInputPanel');
+
+      btn.addEventListener('click', () => {
+        userInput.value = userName;
+        infodoseInput.value = infodoseName;
+        assistantChk.checked = !!assistantEnabled;
+        trainingChk.checked = !!trainingActive;
+        
+        // Populate API/Model
+        apiKeyInput.value = apiKey;
+        modelInput.value = modelName;
+        
+        panel.classList.add('active');
+      });
+      
+      closeBtn.addEventListener('click', ()=> panel.classList.remove('active'));
+      
+      saveBtn.addEventListener('click', () => {
+        // Save basic info
+        userName = userInput.value.trim();
+        infodoseName = infodoseInput.value.trim();
+        assistantEnabled = !!assistantChk.checked;
+        trainingActive = !!trainingChk.checked;
+        localStorage.setItem('di_userName', userName);
+        localStorage.setItem('di_infodoseName', infodoseName);
+        localStorage.setItem('di_assistantEnabled', assistantEnabled ? '1' : '0');
+        localStorage.setItem('di_trainingActive', trainingActive ? '1' : '0');
+        
+        // Save API/Model
+        apiKey = apiKeyInput.value.trim();
+        modelName = modelInput.value.trim() || modelName;
+        localStorage.setItem('di_apiKey', apiKey);
+        localStorage.setItem('di_modelName', modelName);
+
+        updateTopInfo();
+        updateToggleUI();
+        panel.classList.remove('active');
+        if(typeof showToaster === 'function') showToaster('Configurações Salvas', 'success');
+        else alert('Configurações Salvas.');
+      });
+
+      fileInput.addEventListener('change', (e) => {
+        const f = e.target.files[0];
+        if (!f) return;
+        trainingFileName = f.name;
+      });
+
+      importBtn.addEventListener('click', ()=> {
+        const f = fileInput.files[0];
+        if (!f) { alert('Escolha um arquivo .txt para importar.'); return; }
+        const r = new FileReader();
+        r.onload = (ev) => {
+          training = ev.target.result;
+          trainingFileName = f.name || 'uploaded_training.txt';
+          localStorage.setItem('di_trainingText', training);
+          localStorage.setItem('di_trainingFileName', trainingFileName);
+          const tf = document.getElementById('trainingFileName');
+          if (tf) tf.innerText = trainingFileName;
+          alert('Treinamento importado e salvo localmente.');
+        };
+        r.readAsText(f,'utf-8');
+      });
+
+      exportBtn.addEventListener('click', ()=> {
+        if (!training) { alert('Nenhum treinamento presente para exportar.'); return; }
+        const blob = new Blob([training], { type:'text/plain;charset=utf-8' });
+        const url = URL.createObjectURL(blob);
+        const a = document.createElement('a'); a.href = url; a.download = trainingFileName || 'training_export.txt'; a.click(); URL.revokeObjectURL(url);
+      });
+    }
+
+    function setupCrystalModal() {
+      const btn = document.getElementById('crystalBtn');
+      const modal = document.getElementById('crystalModal');
+      const close = document.getElementById('closeCrystal');
+      const exportAll = document.getElementById('exportAllCrystal');
+      const clearAll = document.getElementById('clearAllCrystal');
+
+      btn.addEventListener('click', () => {
+        refreshCrystalList();
+        modal.classList.add('active');
+      });
+      close.addEventListener('click', ()=> modal.classList.remove('active'));
+      exportAll.addEventListener('click', ()=> {
+        const list = JSON.parse(localStorage.getItem(CRYSTAL_KEY) || '[]');
+        if (!list.length) { alert('Nada para exportar.'); return; }
+        const content = list.map(it => `--- ${it.title} · ${it.at} · ${it.infodose}\n\n${it.content}\n\n`).join('\n');
+        const blob = new Blob([content], { type:'text/plain;charset=utf-8' });
+        const url = URL.createObjectURL(blob);
+        const a = document.createElement('a'); a.href = url; a.download = `cristalizados_${Date.now()}.txt`; a.click(); URL.revokeObjectURL(url);
+      });
+      clearAll.addEventListener('click', ()=> {
+        if (!confirm('Limpar todos os cristalizados?')) return;
+        localStorage.removeItem(CRYSTAL_KEY);
+        refreshCrystalList();
+      });
+      document.getElementById('crystalModal').addEventListener('click', (e)=> { if (e.target === document.getElementById('crystalModal')) document.getElementById('crystalModal').classList.remove('active'); });
+    }
+
+    /* ---------- Clipboard + other small UI ---------- */
+    document.addEventListener('DOMContentLoaded', async () => {
+      speechSynthesis.onvoiceschanged = () => { window._vozes = speechSynthesis.getVoices(); };
+
+      apiKey = localStorage.getItem('di_apiKey') || apiKey;
+      modelName = localStorage.getItem('di_modelName') || modelName;
+      userName = localStorage.getItem('di_userName') || userName;
+      infodoseName = localStorage.getItem('di_infodoseName') || infodoseName;
+      assistantEnabled = (localStorage.getItem('di_assistantEnabled') === '1') || assistantEnabled;
+      trainingActive = (localStorage.getItem('di_trainingActive') === '0') ? false : trainingActive;
+
+      await loadInitialTraining();
+      updateTopInfo();
+      updateToggleUI();
+      // setupSettings(); // REMOVED (Merged into TogglePanel)
+      setupTogglePanel();
+      setupCrystalModal();
+
+      // particles init (safe call)
+      try {
+        if (window.__ensureDualLibs) await window.__ensureDualLibs();
+        if (typeof particlesJS === 'function') {
+          particlesJS('particles-js',{
+            particles:{ number:{value:40},color:{value:['#0ff','#f0f']}, shape:{type:'circle'},opacity:{value:0.4},size:{value:2.4}, move:{enable:true,speed:1.5} }, retina_detect:true
+          });
+        }
+      } catch(e){}
+
+      // Performance Button Logic (Toggle visual effects)
+      const perfBtn = document.getElementById('perfBtn');
+      const particlesEl = document.getElementById('particles-js');
+      const ambientEl = document.getElementById('ambientLight');
+      
+      if(perfBtn && particlesEl && ambientEl){
+        perfBtn.addEventListener('click', ()=>{
+          const isHidden = particlesEl.style.display === 'none';
+          if(isHidden) {
+            particlesEl.style.display = 'block';
+            ambientEl.style.opacity = '1';
+            perfBtn.classList.remove('perf-active');
+            if(typeof showToaster==='function') showToaster('Visual: Máximo', 'default');
+          } else {
+            particlesEl.style.display = 'none';
+            ambientEl.style.opacity = '0.3';
+            perfBtn.classList.add('perf-active');
+            if(typeof showToaster==='function') showToaster('Visual: Performance (Econômico)', 'default');
+          }
+        });
+      }
+
+      // eventos básicos
+      const sendBtn = document.getElementById('sendBtn');
+      const userInputEl = document.getElementById('userInput');
+      if (sendBtn) sendBtn.addEventListener('click', sendMessage);
+      if (userInputEl) userInputEl.addEventListener('keypress', e => { if (e.key==='Enter') sendMessage(); });
+      const prevBtn = document.querySelector('[data-action="prev"]');
+      const nextBtn = document.querySelector('[data-action="next"]');
+      if (prevBtn) prevBtn.addEventListener('click', () => changePage(-1));
+      if (nextBtn) nextBtn.addEventListener('click', () => changePage(1));
+
+      const copyBtn = document.querySelector('.copy-button');
+      if (copyBtn) copyBtn.addEventListener('click', () => {
+        const pages = Array.from(document.querySelectorAll('.response-container .page'));
+        const fullText = pages.map(p => p.innerText.trim()).join('\n\n');
+        navigator.clipboard.writeText(fullText);
+      });
+
+      const pasteBtn = document.querySelector('.paste-button');
+      if (pasteBtn) pasteBtn.addEventListener('click', async () => {
+        try {
+          const text = await navigator.clipboard.readText();
+          const inp = document.getElementById('userInput');
+          if (inp) inp.value = text;
+        } catch (err) { console.error('Falha ao colar', err); }
+      });
+
+      // voice quick (melhora compatibilidade com iPhone)
+      const voiceBtn = document.getElementById('voiceBtn');
+      if (voiceBtn) voiceBtn.addEventListener('click', ()=>{
+        try {
+          const SpeechRec = window.SpeechRecognition || window.webkitSpeechRecognition || null;
+          if (!SpeechRec) {
+            showToaster?.('Reconhecimento de voz não suportado neste navegador', 'error');
+            return;
+          }
+          const R = new SpeechRec();
+          R.lang='pt-BR'; R.start();
+          R.onresult = e => {
+            const txt = e.results[0][0].transcript;
+            document.getElementById('userInput').value = txt;
+            sendMessage();
+          };
+          R.onerror = ()=> showToaster?.('Erro no reconhecimento de voz', 'error');
+        } catch(e){ console.error(e); showToaster?.('Voz indisponível', 'error'); }
+      });
+    });
+
+    /* === MANTRA ZEN MODE === */
+    const mantraBtn = document.getElementById('mantra-toggle');
+    const mantraText = document.getElementById('mantra-text');
+    let mantraCollapsed = false;
+    const TXT_EXPANDED = `Do seu jeito. <strong>Sempre</strong> único. <strong>Sempre</strong> seu.`;
+    const TXT_COLLAPSED = `USE · TRANSFORME · DEVOLVA`;
+    function swapMantraText(html) {
+      mantraText.classList.add('fade-out');
+      setTimeout(() => {
+        mantraText.innerHTML = html;
+        mantraText.classList.remove('fade-out');
+        mantraText.classList.add('fade-in');
+        setTimeout(() => mantraText.classList.remove('fade-in'), 300);
+      }, 300);
+    }
+    mantraBtn.addEventListener('click', () => {
+      mantraCollapsed = !mantraCollapsed;
+      if (mantraCollapsed) {
+        mantraBtn.classList.add('collapsed');
+        document.body.classList.add('zen-mode');
+        swapMantraText(TXT_COLLAPSED);
+      } else {
+        mantraBtn.classList.remove('collapsed');
+        document.body.classList.remove('zen-mode');
+        swapMantraText(TXT_EXPANDED);
+      }
+    });
+  </script>
+
+  <!-- Scripts: Fusion HUD (keeps functions needed by sync patch) -->
+  <script>
+    // INIT lucide safely after libs are ensured
+    (async function(){
+      try {
+        if (window.__ensureDualLibs) await window.__ensureDualLibs();
+        if (window.lucide && typeof lucide.createIcons === 'function') lucide.createIcons();
+      } catch(e){ console.warn('lucide init falhou', e); }
+    })();
+
+    // ELEMENT REFERENCES
+    const els = {
+      card: document.getElementById('mainCard'),
+      header: document.getElementById('cardHeader'),
+      avatarTgt: document.getElementById('avatarTarget'),
+      input: document.getElementById('inputUser'),
+      lblHello: document.getElementById('lblHello'),
+      lblName: document.getElementById('lblName'),
+      clock: document.getElementById('clockTime'),
+      smallPreview: document.getElementById('smallPreview'),
+      smallMiniAvatar: document.getElementById('smallMiniAvatar'),
+      smallText: document.getElementById('smallText'),
+      smallIdent: document.getElementById('smallIdent'),
+      actCard: document.getElementById('activationCard'),
+      actPre: document.getElementById('actPre'),
+      actName: document.getElementById('actName'),
+      actMiniAvatar: document.getElementById('actMiniAvatar'),
+      actBadge: document.getElementById('actBadge'),
+      securityStatus: document.getElementById('securityStatus'),
+      // Keys UI
+      keysModal: document.getElementById('keysModal'),
+      keyList: document.getElementById('keyList'),
+      keyName: document.getElementById('keyNameInput'),
+      keyToken: document.getElementById('keyTokenInput'),
+      keyWebhook: document.getElementById('keyWebhookInput'),
+      addKeyBtn: document.getElementById('addKeyBtn'),
+      closeKeysBtn: document.getElementById('closeKeysBtn'),
+      testWebhookBtn: document.getElementById('testWebhookBtn'),
+      exportKeysBtn: document.getElementById('exportKeysBtn'),
+      importKeysBtn: document.getElementById('importKeysBtn'),
+      importFileInput: document.getElementById('importFileInput'),
+      lockVaultBtn: document.getElementById('lockVaultBtn'),
+      vaultStatusText: document.getElementById('vaultStatusText'),
+      // Vault UI
+      vaultModal: document.getElementById('vaultModal'),
+      vaultPass: document.getElementById('vaultPassInput'),
+      vaultUnlock: document.getElementById('vaultUnlockBtn'),
+      vaultCancel: document.getElementById('vaultCancelBtn')
+    };
+
+    // --- CRYPTO UTILS (AES-GCM) ---
+    const CRYPTO = {
+      algo: { name: 'AES-GCM', length: 256 },
+      pbkdf2: { name: 'PBKDF2', hash: 'SHA-256', iterations: 100000 },
+      salt: window.crypto.getRandomValues(new Uint8Array(16)),
+      async getKey(password, salt) {
+        const enc = new TextEncoder();
+        const keyMaterial = await window.crypto.subtle.importKey("raw", enc.encode(password), "PBKDF2", false, ["deriveKey"]);
+        return window.crypto.subtle.deriveKey({ ...this.pbkdf2, salt: salt }, keyMaterial, this.algo, false, ["encrypt", "decrypt"]);
+      },
+      async encrypt(data, password) {
+        const salt = window.crypto.getRandomValues(new Uint8Array(16));
+        const iv = window.crypto.getRandomValues(new Uint8Array(12));
+        const key = await this.getKey(password, salt);
+        const encoded = new TextEncoder().encode(JSON.stringify(data));
+        const encrypted = await window.crypto.subtle.encrypt({ name: "AES-GCM", iv: iv }, key, encoded);
+        const bundle = { s: Array.from(salt), iv: Array.from(iv), d: Array.from(new Uint8Array(encrypted)) };
+        return JSON.stringify(bundle);
+      },
+      async decrypt(bundleStr, password) {
+        try {
+          const bundle = JSON.parse(bundleStr);
+          const salt = new Uint8Array(bundle.s);
+          const iv = new Uint8Array(bundle.iv);
+          const data = new Uint8Array(bundle.d);
+          const key = await this.getKey(password, salt);
+          const decrypted = await window.crypto.subtle.decrypt({ name: "AES-GCM", iv: iv }, key, data);
+          return JSON.parse(new TextDecoder().decode(decrypted));
+        } catch(e) { throw new Error("Senha incorreta ou dados corrompidos"); }
+      }
+    };
+
+    // --- STATE & STORAGE ---
+    const STORAGE_KEY = 'fusion_os_data_v2';
+    let STATE = {
+      keys: [],
+      user: 'Convidado',
+      isEncrypted: false,
+      encryptedData: null
+    };
+    let SESSION_PASSWORD = null;
+
+    function saveData() {
+      const payload = { keys: STATE.keys, user: STATE.user };
+      if (SESSION_PASSWORD) {
+        CRYPTO.encrypt(payload, SESSION_PASSWORD).then(enc => {
+          localStorage.setItem(STORAGE_KEY, JSON.stringify({ isEncrypted: true, data: enc }));
+          STATE.isEncrypted = true;
+          STATE.encryptedData = enc;
+          updateSecurityUI();
+        });
+      } else {
+        localStorage.setItem(STORAGE_KEY, JSON.stringify({ isEncrypted: false, data: payload }));
+      }
+    }
+
+    async function loadData() {
+      const raw = localStorage.getItem(STORAGE_KEY);
+      if (!raw) return;
+      const parsed = JSON.parse(raw);
+      if (parsed.isEncrypted) {
+        STATE.isEncrypted = true;
+        STATE.encryptedData = parsed.data;
+        updateSecurityUI();
+      } else {
+        STATE.keys = parsed.data.keys || [];
+        STATE.user = parsed.data.user || 'Convidado';
+        updateInterface(STATE.user);
+        renderKeysList();
+      }
+    }
+
+    // --- UI UPDATES ---
+    const hashStr = s => { let h=0xdeadbeef; for(let i=0;i<s.length;i++){h=Math.imul(h^s.charCodeAt(i),2654435761);} return (h^h>>>16)>>>0; };
+    const createSvg = (id,sz) => `<svg viewBox="0 0 100 100" width="${sz}" height="${sz}"><defs><linearGradient id="g${id}"><stop offset="0%" stop-color="#00f2ff"/><stop offset="100%" stop-color="#bd00ff"/></linearGradient></defs><circle cx="50" cy="50" r="48" fill="#080b12" stroke="rgba(255,255,255,0.1)"/><circle cx="50" cy="50" r="20" fill="url(#g${id})" opacity="0.9"/></svg>`;
+    const createMiniSvg = (name,sz=30) => {
+      const s = hashStr(name||'D'); const h1=s%360; const h2=(s*37)%360;
+      const grad = `<linearGradient id="gm${s}" x1="0" y1="0" x2="1" y2="1"><stop offset="0" stop-color="hsl(${h1},90%,50%)"/><stop offset="1" stop-color="hsl(${h2},90%,50%)"/></linearGradient>`;
+      return `<svg width="${sz}" height="${sz}" viewBox="0 0 32 32"><defs>${grad}</defs><rect width="32" height="32" rx="8" fill="#0a1016"/><circle cx="16" cy="16" r="6" fill="url(#gm${s})"/></svg>`;
+    };
+
+    function updateInterface(name){
+      const safe = name || 'Convidado';
+      if (els.lblName) els.lblName.innerText = safe;
+      if (els.input) els.input.value = safe;
+      const activeKey = STATE.keys.find(k=>k.active);
+      if (els.smallIdent) els.smallIdent.innerText = activeKey ? activeKey.name : '--';
+      if (els.actBadge) els.actBadge.innerText = activeKey ? `key:${activeKey.name}` : 'v:--';
+      if (els.smallMiniAvatar) els.smallMiniAvatar.innerHTML = createMiniSvg(safe);
+      if (els.actMiniAvatar) els.actMiniAvatar.innerHTML = createMiniSvg(safe,36);
+      if (els.actName) els.actName.innerText = safe;
+      if (els.avatarTgt) els.avatarTgt.innerHTML = createSvg('Main',64);
+      const phrases = ["Foco estável.","Ritmo criativo.","Percepção sutil."];
+      if (els.smallText) els.smallText.innerText = activeKey ? `${activeKey.name} [ATIVO]` : (safe==='Convidado'?'Aguardando...':`${safe} · ${phrases[safe.length%phrases.length]}`);
+      const line = `+${'-'.repeat(safe.length+4)}+`;
+      if (els.actPre) els.actPre.innerText = `${line}\n| ${safe.toUpperCase()} |\n${line}\nID: ${hashStr(safe).toString(16)}`;
+      // sync top-info if chat is present
+      try { if (typeof userName !== 'undefined') { userName = safe; localStorage.setItem('di_userName', safe); updateTopInfo(); } } catch(e){}
+    }
+
+    function updateSecurityUI() {
+      if (SESSION_PASSWORD) {
+        if (els.securityStatus) { els.securityStatus.innerText = "COFRE DESTRANCADO"; els.securityStatus.style.color = "var(--neon-success)"; }
+        if (els.vaultStatusText) els.vaultStatusText.innerText = "Cofre Protegido (Destrancado)";
+        if (els.lockVaultBtn) els.lockVaultBtn.innerText = "TRANCAR";
+      } else if (STATE.isEncrypted) {
+        if (els.securityStatus) { els.securityStatus.innerText = "CRIPTOGRAFADO"; els.securityStatus.style.color = "var(--neon-gold)"; }
+        if (els.vaultStatusText) els.vaultStatusText.innerText = "Cofre Trancado";
+        if (els.lockVaultBtn) els.lockVaultBtn.innerText = "REDEFINIR";
+      } else {
+        if (els.securityStatus) { els.securityStatus.innerText = "SEM PROTEÇÃO"; els.securityStatus.style.color = "rgba(255,255,255,0.5)"; }
+        if (els.vaultStatusText) els.vaultStatusText.innerText = "Cofre Aberto (Sem senha)";
+        if (els.lockVaultBtn) els.lockVaultBtn.innerText = "CRIAR SENHA";
+      }
+    }
+
+    // --- KEYS MANAGER LOGIC ---
+    function renderKeysList(){
+      if(!els.keyList) return;
+      els.keyList.innerHTML = '';
+      if(STATE.keys.length===0){ els.keyList.innerHTML = '<div style="color:rgba(255,255,255,0.3);text-align:center;padding:20px">Nenhuma chave armazenada.</div>'; return; }
+      STATE.keys.forEach(k=>{
+        const div = document.createElement('div');
+        div.className = `key-item ${k.active?'active-item':''}`;
+        const typeInfo = k.webhook ? '<span style="color:var(--neon-purple)">WEBHOOK</span>' : 'API KEY';
+        div.innerHTML = `
+          <div class="meta">
+            <div style="font-weight:700;font-size:0.9rem">${escapeHtml(k.name)}</div>
+            <div style="font-size:0.75rem;color:rgba(255,255,255,0.5)">${typeInfo}</div>
+          </div>
+          <div class="actions">
+            ${!k.active ? `<button class="small-btn" onclick="setActiveKey('${k.id}')">ATIVAR</button>` : `<span style="font-size:0.7rem;font-weight:700;color:var(--neon-cyan);margin-right:10px">ATIVA</span>`}
+            <button class="small-btn danger" onclick="removeKey('${k.id}')"><i data-lucide="trash-2" style="width:14px"></i></button>
+          </div>
+        `;
+        els.keyList.appendChild(div);
+      });
+      try { if (window.lucide && typeof lucide.createIcons === 'function') lucide.createIcons(); } catch(e){}
+    }
+
+    function addKey() {
+      const name = els.keyName.value.trim();
+      const token = els.keyToken.value.trim();
+      const webhook = els.keyWebhook.value.trim();
+      if(!name){ showToaster('Nome obrigatório','error'); return; }
+      const newKey = { id: Date.now().toString(36), name, token, webhook, active: STATE.keys.length===0 };
+      STATE.keys.push(newKey);
+      saveData();
+      renderKeysList();
+      updateInterface(STATE.user);
+      els.keyName.value=''; els.keyToken.value=''; els.keyWebhook.value='';
+      showToaster('Chave adicionada!', 'success');
+    }
+
+    window.removeKey = (id) => {
+      if(confirm('Remover chave permanentemente?')){
+        STATE.keys = STATE.keys.filter(k=>k.id!==id);
+        saveData(); renderKeysList(); updateInterface(STATE.user);
+      }
+    };
+
+    // === PATCHED setActiveKey: sincroniza di_apiKey + modelName imediatamente ===
+    window.setActiveKey = (id) => {
+      STATE.keys.forEach(k=> k.active = (k.id===id));
+      saveData(); renderKeysList(); updateInterface(STATE.user);
+      showToaster('Chave ativa atualizada.', 'success');
+      try {
+        const active = STATE.keys.find(k=>k.active);
+        if (active?.token) {
+          localStorage.setItem('di_apiKey', active.token);
+          if (active.model) localStorage.setItem('di_modelName', active.model);
+          // SINCRONIZA AGORA para chamar callAI() sem esperar storage event
+          apiKey = active.token;
+          modelName = active.model || modelName;
+          // Se o painel estiver aberto, atualiza inputs
+          const keyEl = document.getElementById('apiKeyInputPanel'); if (keyEl) keyEl.value = apiKey;
+          const mEl  = document.getElementById('modelInputPanel'); if (mEl) mEl.value = modelName;
+        }
+      } catch(e){}
+    };
+
+    // --- WEBHOOK TEST ---
+    if (els.testWebhookBtn) els.testWebhookBtn.addEventListener('click', async () => {
+       const url = els.keyWebhook.value.trim();
+       if(!url) return showToaster('Insira uma URL', 'error');
+       els.testWebhookBtn.innerHTML = '...';
+       try {
+         const controller = new AbortController();
+         setTimeout(()=>controller.abort(), 4000);
+         await fetch(url, { method: 'POST', body: JSON.stringify({ping:true}), mode: 'no-cors', signal: controller.signal });
+         showToaster('Envio realizado (Ping)', 'success');
+       } catch(e) {
+         showToaster('Falha na conexão', 'error');
+       } finally {
+         els.testWebhookBtn.innerText = 'PING';
+       }
+    });
+
+    // --- VAULT FLOW ---
+    function openManager() {
+      if (STATE.isEncrypted && !SESSION_PASSWORD) {
+        els.vaultModal.style.display = 'flex';
+        els.vaultModal.setAttribute('aria-hidden', 'false');
+        els.vaultPass.focus();
+      } else {
+        els.keysModal.style.display = 'flex';
+        els.keysModal.setAttribute('aria-hidden', 'false');
+      }
+    }
+
+    if (els.vaultUnlock) els.vaultUnlock.addEventListener('click', async () => {
+      const pass = els.vaultPass.value;
+      try {
+        const decrypted = await CRYPTO.decrypt(STATE.encryptedData, pass);
+        SESSION_PASSWORD = pass;
+        STATE.keys = decrypted.keys;
+        STATE.user = decrypted.user;
+        els.vaultModal.style.display = 'none';
+        els.keysModal.style.display = 'flex';
+        els.vaultPass.value = '';
+        renderKeysList();
+        updateSecurityUI();
+        showToaster('Cofre destrancado.', 'success');
+      } catch(e) {
+        showToaster('Senha incorreta.', 'error');
+        els.vaultPass.classList.add('vibe-gold');
+        setTimeout(()=>els.vaultPass.classList.remove('vibe-gold'), 500);
+      }
+    });
+
+    if (els.lockVaultBtn) els.lockVaultBtn.addEventListener('click', () => {
+       if (!SESSION_PASSWORD && !STATE.isEncrypted) {
+         const newPass = prompt("Defina uma senha para o Cofre:");
+         if(newPass) {
+           SESSION_PASSWORD = newPass;
+           saveData();
+           showToaster("Cofre criado e trancado.", 'success');
+         }
+       } else {
+         SESSION_PASSWORD = null;
+         els.keysModal.style.display = 'none';
+         showToaster("Cofre trancado.", 'success');
+       }
+       updateSecurityUI();
+    });
+
+    if (els.vaultCancel) els.vaultCancel.addEventListener('click', ()=> els.vaultModal.style.display='none');
+    if (els.closeKeysBtn) els.closeKeysBtn.addEventListener('click', ()=> els.keysModal.style.display='none');
+    if (els.addKeyBtn) els.addKeyBtn.addEventListener('click', addKey);
+
+    // Import/Export
+    if (els.exportKeysBtn) els.exportKeysBtn.addEventListener('click', ()=>{
+      const data = JSON.stringify(STATE.keys, null, 2);
+      const blob = new Blob([data], {type:'application/json'});
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement('a'); a.href=url; a.download='fusion_keys.json'; a.click();
+    });
+    if (els.importKeysBtn) els.importKeysBtn.addEventListener('click', ()=> els.importFileInput.click());
+    if (els.importFileInput) els.importFileInput.addEventListener('change', (e)=>{
+       const f = e.target.files[0];
+       if(f) {
+         const r = new FileReader();
+         r.onload = (ev) => {
+           try { STATE.keys = JSON.parse(ev.target.result); saveData(); renderKeysList(); showToaster('Chaves importadas!','success'); }
+           catch(e){ showToaster('Arquivo inválido','error'); }
+         };
+         r.readAsText(f);
+       }
+    });
+
+    // --- GESTURES / INTERACTION ---
+    let state = { isOrb:false, isHud:false, isDragging:false, startX:0, startY:0, timer:null };
+    if (els.card) els.card.addEventListener('pointerdown', handleStart);
+    document.addEventListener('pointermove', handleMove);
+    document.addEventListener('pointerup', handleEnd);
+
+    // Click on Avatar in Card Mode -> Open Manager (with lazy-load ZebNeb)
+    if (els.avatarTgt) els.avatarTgt.addEventListener('click', async (e)=>{
+       if (!window.__zebnebLoaded) {
+         try {
+           window.__zebnebLoaded = true; console.log('ZebNeb placeholder loaded');
+         } catch(err){ console.warn('zebneb load error', err); }
+       }
+       if(!state.isOrb && !state.isHud) openManager();
+    });
+
+    function handleStart(e) {
+      if(e.target.tagName === 'INPUT' || e.target.tagName === 'BUTTON' || e.target.closest('.keys-card')) return;
+      if(!state.isOrb && !state.isHud && !els.header.contains(e.target)) return;
+      
+      // Prevent default scrolling on mobile when interacting with card
+      if (state.isOrb) e.preventDefault();
+
+      state.startX = e.clientX; state.startY = e.clientY; state.isDragging = false;
+      state.timer = setTimeout(() => {
+        if(state.isOrb) openManager();
+        else if (!state.isHud) transmuteToOrb(e.clientX, e.clientY);
+      }, 600);
+      
+      if(state.isOrb) {
+         try { els.card.setPointerCapture(e.pointerId); } catch(e){}
+         const rect = els.card.getBoundingClientRect();
+         state.offsetX = e.clientX - rect.left;
+         state.offsetY = e.clientY - rect.top;
+      }
+    }
+
+    function handleMove(e) {
+      if(!state.timer && !state.isOrb) return;
+      const dist = Math.hypot(e.clientX - state.startX, e.clientY - state.startY);
+      if(dist > 10) {
+        if(state.timer) { clearTimeout(state.timer); state.timer = null; }
+        if(state.isOrb) {
+          state.isDragging = true;
+          // Ensure smooth tracking by using requestAnimationFrame if needed, 
+          // but direct update is usually responsive enough for simple drags
+          els.card.style.left = (e.clientX - state.offsetX) + 'px';
+          els.card.style.top = (e.clientY - state.offsetY) + 'px';
+          els.card.style.transform = 'none';
+        }
+      }
+    }
+
+    function handleEnd(e) {
+      if(state.timer) { clearTimeout(state.timer); state.timer = null; }
+      if(state.isDragging && state.isOrb) {
+        state.isDragging = false; 
+        try { els.card.releasePointerCapture(e.pointerId); } catch(err){}
+        snapOrb(e.clientX, e.clientY); 
+        return;
+      }
+      const dist = Math.hypot(e.clientX - state.startX, e.clientY - state.startY);
+      if(dist < 10) {
+        if(state.isOrb || state.isHud) revertToCard();
+        else toggleCardState();
+      }
+    }
+
+    function transmuteToOrb(x,y) {
+      if(navigator.vibrate) navigator.vibrate(50);
+      els.card.classList.add('orb','closed'); els.card.classList.remove('content-visible');
+      // Center the orb on the finger (34px is half of 68px width)
+      els.card.style.left=(x-34)+'px'; 
+      els.card.style.top=(y-34)+'px';
+      
+      state.isOrb=true; state.isHud=false;
+      // Pre-calculate offsets for immediate dragging if user continues moving
+      state.offsetX = 34; 
+      state.offsetY = 34;
+    }
+
+    function snapOrb(x,y) {
+      if(y < 80) {
+        state.isHud=true; state.isOrb=false; els.card.classList.add('hud'); els.card.classList.remove('orb');
+        els.card.style.left=''; els.card.style.top=''; els.card.style.transform='';
+      } else {
+        const tx = x < window.innerWidth/2 ? 15 : window.innerWidth-83;
+        els.card.style.transition='left 0.4s ease, top 0.4s ease'; els.card.style.left=tx+'px';
+        setTimeout(()=>els.card.style.transition='',400);
+      }
+    }
+
+    function revertToCard() {
+      state.isOrb=false; state.isHud=false;
+      els.card.style.transition='all 0.5s var(--ease-smooth)'; els.card.style.left=''; els.card.style.top=''; els.card.style.width=''; els.card.style.height=''; els.card.style.transform='';
+      els.card.classList.remove('orb','hud','closed');
+      setTimeout(()=>els.card.classList.add('content-visible'),300);
+    }
+
+    function toggleCardState() {
+      if(els.card.classList.contains('animating')) return;
+      const isClosed = els.card.classList.contains('closed');
+      els.card.classList.add('animating');
+      if(isClosed) {
+        els.card.classList.remove('closed');
+        els.card.animate([{transform:'scale(0.95)',opacity:0.8},{transform:'scale(1)',opacity:1}],{duration:400,easing:'cubic-bezier(0.34,1.3,0.64,1)'})
+        .onfinish = ()=>{ els.card.classList.remove('animating'); els.card.classList.add('content-visible'); }
+      } else {
+        els.card.classList.remove('content-visible');
+        els.card.animate([{transform:'translateY(0)',opacity:1},{transform:'translateY(10px)',opacity:1}],{duration:200,easing:'ease-in'})
+        .onfinish = ()=>{ els.card.classList.add('closed'); els.card.classList.remove('animating'); }
+      }
+    }
+
+    // --- MISC UTILS ---
+    function escapeHtml(s){ return s ? s.replace(/[&<>"']/g, c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c])) : ''; }
+    function showToaster(txt,type='default'){ const t=document.createElement('div'); t.className=`toaster ${type}`; t.innerText=txt; document.getElementById('toasterWrap').appendChild(t); setTimeout(()=>t.classList.add('show'),10); setTimeout(()=>{t.classList.remove('show');setTimeout(()=>t.remove(),300)},2500); }
+    function toggleActivation(){ const h=els.actCard.classList.contains('activation-hidden'); els.actCard.classList.toggle('activation-hidden',!h); els.actCard.classList.toggle('activation-open',h); }
+
+    // Copy/Download
+    const copyActBtnEl = document.getElementById('copyActBtn');
+    if (copyActBtnEl) copyActBtnEl.addEventListener('click', ()=>{
+       const active = STATE.keys.find(k=>k.active);
+       const append = active ? `\n\n[Active Key: ${active.name}]` : '';
+       navigator.clipboard.writeText(els.actPre.innerText + append).then(()=>showToaster('Copiado!'));
+    });
+    const downloadActBtnEl = document.getElementById('downloadActBtn');
+    if (downloadActBtnEl) downloadActBtnEl.addEventListener('click', async()=>{
+       try {
+         if (window.html2canvas) {
+           const canvas = await html2canvas(els.actPre, {scale:2, backgroundColor:null});
+           canvas.toBlob(b=>{ const u=URL.createObjectURL(b); const a=document.createElement('a'); a.href=u; a.download='activation.png'; a.click(); });
+         } else {
+           showToaster('html2canvas ausente', 'error');
+         }
+       } catch(e){ console.error(e); showToaster('Erro PNG', 'error'); }
+    });
+
+    // Init
+    if (els.input) els.input.addEventListener('input', (e)=>{ STATE.user=e.target.value; updateInterface(e.target.value); saveData(); });
+    setTimeout(()=>{ if (els.card) { els.card.classList.add('active'); if (els.avatarTgt) els.avatarTgt.classList.add('shown'); loadData(); } }, 100);
+    setInterval(()=>{ if (els.clock) els.clock.innerText = new Date().toLocaleTimeString('pt-BR',{hour:'2-digit',minute:'2-digit'}); },1000);
+
+    /* ==== Patch sync userName (força persistência) ==== */
+    (function(){
+      const safeUpdateUserName = (name) => {
+        try {
+          name = (name||'').toString();
+          if (typeof STATE !== 'undefined') STATE.user = name || STATE.user;
+          if (typeof userName !== 'undefined') userName = name || userName;
+          localStorage.setItem('di_userName', name || '');
+          try { if (typeof updateTopInfo === 'function') updateTopInfo(); } catch(e){}
+        } catch(e) { console.warn('safeUpdateUserName', e); }
+      };
+
+      const inputCard = document.getElementById('inputUser');
+      if (inputCard) {
+        inputCard.addEventListener('change', (e) => safeUpdateUserName(e.target.value));
+        inputCard.addEventListener('blur', (e) => safeUpdateUserName(e.target.value));
+        if (inputCard.value && inputCard.value.trim()) safeUpdateUserName(inputCard.value.trim());
+      }
+
+      const origUpdateInterface = window.updateInterface;
+      if (typeof origUpdateInterface === 'function') {
+        window.updateInterface = function(name){
+          try { origUpdateInterface(name); } catch(e){ console.warn(e); }
+          try { safeUpdateUserName(name); } catch(e){}
+        };
+      }
+    })();
+  </script>
+
+  <!-- BEGIN: Dual Infodose — OpenRouter / LocalStorage Sync Patch (single copy) -->
+  <script>
+  (function(){
+    function chatSyncOnStorage() {
+      try {
+        if (typeof apiKey !== 'undefined') {
+          const newKey = localStorage.getItem('di_apiKey') || '';
+          if (newKey && newKey !== apiKey) {
+            apiKey = newKey;
+            const keyEl = document.getElementById('apiKeyInputPanel');
+            if (keyEl) keyEl.value = apiKey;
+          }
+        }
+
+        if (typeof modelName !== 'undefined') {
+          const newModel = localStorage.getItem('di_modelName') || '';
+          if (newModel && newModel !== modelName) {
+            modelName = newModel;
+            const mEl = document.getElementById('modelInputPanel');
+            if (mEl) mEl.value = modelName;
+          }
+        }
+
+        if (typeof training !== 'undefined') {
+          const t = localStorage.getItem('di_trainingText');
+          if (t && training !== t) {
+            training = t;
+            const fname = localStorage.getItem('di_trainingFileName') || '';
+            const fEl = document.getElementById('trainingFileName');
+            if (fEl && fname) fEl.innerText = fname;
+          }
+        }
+
+        if (typeof userName !== 'undefined')
+          userName = localStorage.getItem('di_userName') || '';
+
+        if (typeof infodoseName !== 'undefined')
+          infodoseName = localStorage.getItem('di_infodoseName') || '';
+
+        const dispU = document.getElementById('displayUser');
+        const dispI = document.getElementById('displayInfodose');
+
+        if (dispU) dispU.innerText = 'User: ' + (userName || '—');
+        if (dispI) dispI.innerText = 'Infodose: ' + (infodoseName || '—');
+
+      } catch (e) {
+        console.warn('[Dual Sync] chatSync error', e);
+      }
+    }
+
+    function cardImportDiApiKey() {
+      try {
+        if (typeof STATE === 'undefined' || !Array.isArray(STATE.keys)) return;
+        const sk = localStorage.getItem('di_apiKey');
+        const model = localStorage.getItem('di_modelName') || '';
+        if (!sk) return;
+        let key = STATE.keys.find(k => k.token === sk);
+        if (!key) {
+          STATE.keys.forEach(k => k.active = false);
+          STATE.keys.unshift({
+            id: 'import-' + Date.now(),
+            name: 'Imported-SK',
+            token: sk,
+            model: model,
+            webhook: '',
+            active: true
+          });
+        } else {
+          STATE.keys.forEach(k => k.active = (k.token === sk));
+        }
+        if (typeof saveData === 'function') saveData();
+        if (typeof renderKeysList === 'function') renderKeysList();
+        if (typeof updateInterface === 'function') updateInterface(STATE.user);
+      } catch (e) {
+        console.warn('[Dual Sync] cardImport error', e);
+      }
+    }
+
+    try {
+      if (typeof window.setActiveKey === 'function') {
+        const original = window.setActiveKey.bind(window);
+        window.setActiveKey = function(id) {
+          original(id);
+          try {
+            const active = STATE?.keys?.find(k => k.active);
+            if (active?.token) {
+              localStorage.setItem('di_apiKey', active.token);
+              if (active.model) localStorage.setItem('di_modelName', active.model);
+            }
+          } catch(e){}
+        };
+      }
+    } catch(e){}
+
+    window.addEventListener('storage', (e) => {
+      const keys = [
+        'di_apiKey',
+        'di_modelName',
+        'di_trainingText',
+        'di_trainingFileName',
+        'di_userName',
+        'di_infodoseName',
+        'di_assistantEnabled',
+        'di_trainingActive'
+      ];
+      if (keys.includes(e.key)) {
+        chatSyncOnStorage();
+        cardImportDiApiKey();
+      }
+    });
+
+    setTimeout(() => {
+      chatSyncOnStorage();
+      cardImportDiApiKey();
+    }, 80);
+
+  })();
+  </script>
+  <!-- END: Dual Infodose Sync Patch -->
+
+</body>
+</html>
+
+
