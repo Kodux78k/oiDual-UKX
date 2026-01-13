@@ -53,11 +53,7 @@
     })();
   </script>
 
-  <script>
-    if ('serviceWorker' in navigator) {
-      navigator.serviceWorker.register('./sw.js').catch(()=>{});
-    }
-  </script>
+
 
   <style>
     /* ====== Combined variables & base ====== */
@@ -1735,7 +1731,11 @@
   })();
   </script>
   <!-- END: Dual Infodose Sync Patch -->
-
+  <script>
+    if ('serviceWorker' in navigator) {
+      navigator.serviceWorker.register('./sw.js').catch(()=>{});
+    }
+  </script>
 </body>
 </html>
 
