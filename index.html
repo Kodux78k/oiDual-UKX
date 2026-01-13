@@ -16,7 +16,7 @@
   <!-- Fonts (Google) -->
   <link href="https://fonts.googleapis.com/css2?family=Montserrat:wght@200;400;600;700;900&family=JetBrains+Mono:wght@400;700&display=swap" rel="stylesheet">
 
-  <!-- LIB LOADER (Atualizado para CDNs para garantir funcionamento imediato) -->
+  <!-- LIB LOADER (CDNs para garantir funcionamento imediato) -->
   <script>
     (function(){
       const LIBS = [
@@ -41,26 +41,23 @@
             if(lib.check && lib.check()) continue;
             await loadScript(lib.path);
             await new Promise(r=>setTimeout(r,50));
-            if(!(lib.check && lib.check())){
-              console.warn('Lib presente mas não inicializou:', lib.name);
-            }
-          }catch(e){
-            console.warn('Lib não encontrada:', lib.path);
-          }
+          }catch(e){ console.warn('Lib warning:', lib.name); }
         }
       }
 
-      // Fontes CSS Variables
       document.documentElement.style.setProperty('--font-ui', "'Montserrat', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, 'Helvetica Neue', Arial, sans-serif");
       document.documentElement.style.setProperty('--font-code', "'JetBrains Mono', ui-monospace, SFMono-Regular, Menlo, Monaco, 'Roboto Mono', monospace");
 
       window.__ensureDualLibs = ensureLibs;
-      // Inicia o carregamento
       ensureLibs().then(()=>{ console.info('libs ensured'); }).catch(()=>{});
     })();
   </script>
 
- 
+  <script>
+    if ('serviceWorker' in navigator) {
+      navigator.serviceWorker.register('./sw.js').catch(()=>{});
+    }
+  </script>
 
   <style>
     /* ====== Combined variables & base ====== */
@@ -83,7 +80,6 @@
     body{
       font-family:var(--font-ui); color:var(--text-dark);
       background-color: #000;
-      /* Grade de fundo sutil + gradiente escuro */
       background-image:
         linear-gradient(rgba(255,255,255,0.02) 1px, transparent 1px),
         linear-gradient(90deg, rgba(255,255,255,0.02) 1px, transparent 1px),
@@ -94,9 +90,8 @@
     }
 
     /* ====== Particles / Ambient ====== */
-    /* Z-index 0 para ficar no fundo, mas visível sobre o background-color */
-    #particles-js{position:fixed;inset:0;z-index:0;pointer-events:none;}
-    .ambient-light{position:fixed;inset:0;z-index:0;pointer-events:none}
+    #particles-js{position:fixed;inset:0;z-index:0;pointer-events:none; transition: opacity 0.5s ease;}
+    .ambient-light{position:fixed;inset:0;z-index:0;pointer-events:none; transition: opacity 0.5s ease;}
     
     .blob{position:absolute;border-radius:50%;filter:blur(100px);opacity:0.14;animation:float 25s infinite alternate ease-in-out}
     .blob-1{width:60vw;height:60vw;background:var(--neon-cyan);top:-20%;left:-20%}
@@ -104,14 +99,6 @@
     @keyframes float{0%{transform:translate(0,0)}100%{transform:translate(40px,60px)}}
 
     /* ====== Chat Cinematográfico styles ====== */
-    .svg-container{
-        position:absolute;top:35%;left:50%;transform:translate(-50%,-50%);
-        width:160px;height:160px;z-index:1;
-        display: flex; justify-content: center; align-items: center;
-        opacity: 0.8;
-    }
-    .svg-container object{width:100%;height:100%}
-    
     .top-info {
       position: fixed; top: 18px; left: 20px; z-index: 5;
       background: rgba(0,0,0,0.35); padding: 8px 12px; border-radius: 12px; font-size: 0.9em;
@@ -132,7 +119,9 @@
     .control-btn{background:rgba(255,255,255,0.05);padding:6px;border-radius:6px;cursor:pointer;transition:background var(--fast);display:flex;gap:6px;border:none;outline:none; color: #fff;}
     .control-btn:hover{background:rgba(255,255,255,0.12)}
     .control-btn svg { stroke: currentColor; fill: none; }
-    .toggle-button.active{color:#0f0}
+    
+    /* Performance Button state */
+    .perf-active { color: var(--neon-gold); border: 1px solid rgba(255, 215, 0, 0.3); }
     
     .pagination{display:flex;align-items:center;gap:10px}
     .pagination button{background:none;border:none;font-size:1.2em;color:#6fe4fb;cursor:pointer;transition:transform var(--fast)}
@@ -159,7 +148,7 @@
     .input-container{position:fixed;left:20px;right:20px;bottom:90px;display:flex;gap:10px;z-index:5;max-width:calc(100% - 40px)}
     .input-container input{flex:1;padding:15px;border:none;border-radius:20px;background:rgba(255,255,255,0.1);color:inherit;outline:none;font-size:16px;transition:background var(--fast); backdrop-filter: blur(5px); border: 1px solid rgba(255,255,255,0.1);}
     .input-container input:focus{background:rgba(255,255,255,0.2)}
-    .input-container button{width:54px;height:54px;border:none;border-radius:50%;background:linear-gradient(45deg,var(--primary),var(--secondary));color:#fff;font-size:1.5em;cursor:pointer;display:flex;justify-content:center;align-items:center;animation:pulse 2s infinite ease-in-out;transition:transform var(--fast); border: 1px solid rgba(255,255,255,0.2);}
+    .input-container button{width:54px;height:54px;border:none;border-radius:50%;background:linear-gradient(45deg,var(--primary),var(--secondary));color:#fff;font-size:1.5em;cursor:pointer;display:flex;justify-content:center;align-items:center;animation:pulse 2s infinite ease-in-out;transition:transform var(--fast); border: 1px solid rgba(255,255,255,0.2); overflow:hidden;}
     .input-container button:hover{transform:scale(1.1)}
     
     @keyframes pulse{0%,100%{transform:scale(1)}50%{transform:scale(1.02)}}
@@ -312,7 +301,6 @@
     /* Responsive */
     @media (max-width:640px){
       .box{max-width:92%}
-      .svg-container{width:120px;height:120px}
       .form-grid{grid-template-columns:1fr}
     }
   </style>
@@ -321,7 +309,6 @@
 
   <!-- ALERT OVERRIDE (For Preview Safety) -->
   <script>
-    // Map default alert/confirm to safer implementations or console to prevent blocking
     const originalAlert = window.alert;
     window.alert = function(msg) {
         if(typeof showToaster === 'function') {
@@ -339,15 +326,7 @@
 
   <!-- PARTICLES + AMBIENT BLOBS -->
   <div id="particles-js"><canvas class="particles-js-canvas-el"></canvas></div>
-  <div class="ambient-light"><div class="blob blob-1"></div><div class="blob blob-2"></div></div>
-
-  <!-- SVG central (chat) - Object maintained -->
-  <div class="svg-container" style="z-index:3">
-    <object data="3D_logo_Dual_Infodose_9.svg" type="image/svg+xml">
-      <!-- Fallback visual if SVG missing -->
-      <div style="width:100%;height:100%;border-radius:50%;background:rgba(255,255,255,0.05);display:flex;align-items:center;justify-content:center;color:#0ff;font-weight:900;">DUAL</div>
-    </object>
-  </div>
+  <div class="ambient-light" id="ambientLight"><div class="blob blob-1"></div><div class="blob blob-2"></div></div>
 
   <!-- TOP INFO (chat) -->
   <div class="top-info" id="topInfo" style="z-index:5">
@@ -369,14 +348,15 @@
         <button class="control-btn paste-button" title="Colar">
            <svg viewBox="0 0 24 24" width="20" stroke-width="2"><path d="M16 4h2a2 2 0 0 1 2 2v14a2 2 0 0 1-2 2H6a2 2 0 0 1-2-2V6a2 2 0 0 1 2-2h2"></path><rect x="8" y="2" width="8" height="4" rx="1" ry="1"></rect></svg>
         </button>
-        <button id="toggleBtn" class="control-btn toggle-button" title="Painel Infodose">
+        <!-- PERFORMANCE BUTTON -->
+        <button id="perfBtn" class="control-btn" title="Modo Performance (On/Off)">
+          <svg viewBox="0 0 24 24" width="20" height="20" stroke="currentColor" fill="none" stroke-width="2"><polygon points="13 2 3 14 12 14 11 22 21 10 12 10 13 2"></polygon></svg>
+        </button>
+        <button id="toggleBtn" class="control-btn toggle-button" title="Painel & Configurações">
           <svg viewBox="0 0 24 24" width="20" height="20" stroke="currentColor" fill="none" stroke-width="2"><circle cx="12" cy="12" r="3"></circle><path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 0 1 0 2.83 2 2 0 0 1-2.83 0l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-2 2 2 2 0 0 1-2-2v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 0 1-2.83 0 2 2 0 0 1 0-2.83l.06-.06a1.65 1.65 0 0 0 .33-1.82 1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1-2-2 2 2 0 0 1 2-2h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 0 1 0-2.83 2 2 0 0 1 2.83 0l.06.06a1.65 1.65 0 0 0 1.82.33H9a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 2-2 2 2 0 0 1 2 2v.09a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 2 2 2 2 0 0 1-2 2h-.09a1.65 1.65 0 0 0-1.51 1z"></path></svg>
         </button>
         <button id="crystalBtn" class="control-btn" title="Cristalizados">
           <svg viewBox="0 0 24 24" width="20" height="20" stroke="currentColor" fill="none" stroke-width="2"><path d="M12 2l2.9 6.3L21 10l-5 3.6L17.8 21 12 17.7 6.2 21 7 13.6 2 10l6.1-1.7L12 2z"></path></svg>
-        </button>
-        <button id="settingsBtn" class="control-btn" title="Configurações">
-          <svg viewBox="0 0 24 24" width="20" height="20" stroke="currentColor" fill="none" stroke-width="2"><circle cx="12" cy="12" r="3"></circle><path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 0 1 0 2.83 2 2 0 0 1-2.83 0l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-2 2 2 2 0 0 1-2-2v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 0 1-2.83 0 2 2 0 0 1 0-2.83l.06-.06a1.65 1.65 0 0 0 .33-1.82 1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1-2-2 2 2 0 0 1 2-2h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 0 1 0-2.83 2 2 0 0 1 2.83 0l.06.06a1.65 1.65 0 0 0 1.82.33H9a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 2-2 2 2 0 0 1 2 2v.09a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 2 2 2 2 0 0 1-2 2h-.09a1.65 1.65 0 0 0-1.51 1z"></path></svg>
         </button>
       </div>
 
@@ -392,38 +372,14 @@
   <div class="input-container" style="z-index:5">
     <input id="userInput" type="text" placeholder="Diga: 'oi, Dual'...">
     <button id="sendBtn" title="Enviar">➤</button>
-    <button id="voiceBtn" title="Falar">
-      <object data="Reset_buttom_Dual-Infodose.svg" type="image/svg+xml" width="36" height="36" style="pointer-events: none;">
-        <span style="font-size:24px">🎤</span>
-      </object>
-    </button>
+    <!-- Rec Button (Emoji) -->
+    <button id="voiceBtn" title="Falar" aria-label="Falar" style="font-size:24px; line-height:1; display:flex; align-items:center; justify-content:center;">🔘</button>
   </div>
 
-  <!-- Settings Modal (chat) -->
-  <div id="settingsModal" class="modal">
-    <div class="box">
-      <h3>Configuração Neural</h3>
-      <div class="col">
-        <div class="input-group">
-          <label>OpenRouter API Key (SK)</label>
-          <input type="password" id="apiKeyInput" placeholder="sk-or-..." autocomplete="off">
-        </div>
-        <div class="input-group">
-          <label>Modelo AI</label>
-          <input type="text" id="modelInput" placeholder="ex: meta-llama/llama-3.1-405b-instruct:free">
-        </div>
-        <div class="settings-actions">
-          <button id="cancelSettings" class="btn btn-sec">Cancelar</button>
-          <button id="saveSettings" class="btn btn-prim">Salvar Conexão</button>
-        </div>
-      </div>
-    </div>
-  </div>
-
-  <!-- Toggle Panel (chat) -->
+  <!-- Unified Panel (Toggle + Settings) -->
   <div id="togglePanel" class="panel">
     <div class="box">
-      <h3>Painel Infodose</h3>
+      <h3>Painel Infodose & Configurações</h3>
       <div class="row">
         <div style="flex:1" class="col">
           <label class="small">Usuário</label>
@@ -452,8 +408,22 @@
         <input type="checkbox" id="trainingActiveCheckbox" />
       </div>
 
-      <div style="margin-top:12px; display:flex; gap:8px;">
-        <button id="savePanelBtn" class="btn btn-prim">Salvar Painel</button>
+      <!-- Merged Neural Config -->
+      <hr style="border:0; border-top:1px solid rgba(255,255,255,0.1); margin:15px 0;">
+      <h3 style="font-size:1rem; color:var(--accent)">Conexão Neural (LLM)</h3>
+      <div class="col">
+        <div class="input-group">
+          <label>OpenRouter API Key (SK)</label>
+          <input type="password" id="apiKeyInputPanel" placeholder="sk-or-..." autocomplete="off">
+        </div>
+        <div class="input-group">
+          <label>Modelo AI</label>
+          <input type="text" id="modelInputPanel" placeholder="ex: meta-llama/llama-3.1-405b-instruct:free">
+        </div>
+      </div>
+
+      <div style="margin-top:15px; display:flex; gap:8px;">
+        <button id="savePanelBtn" class="btn btn-prim" style="flex:1">Salvar Tudo</button>
         <button id="closePanelBtn" class="btn btn-sec">Fechar</button>
       </div>
     </div>
@@ -911,55 +881,43 @@
       });
     }
 
-    function setupSettings() {
-      const modal = document.getElementById('settingsModal');
-      const btn = document.getElementById('settingsBtn');
-      const closeBtn = document.getElementById('cancelSettings');
-      const saveBtn = document.getElementById('saveSettings');
-      const keyInput = document.getElementById('apiKeyInput');
-      const modelInput = document.getElementById('modelInput');
-
-      btn.addEventListener('click', () => {
-        keyInput.value = apiKey;
-        modelInput.value = modelName;
-        modal.classList.add('active');
-      });
-      const closeModal = () => modal.classList.remove('active');
-      closeBtn.addEventListener('click', closeModal);
-      saveBtn.addEventListener('click', () => {
-        apiKey = keyInput.value.trim();
-        modelName = modelInput.value.trim() || modelName;
-        localStorage.setItem('di_apiKey', apiKey);
-        localStorage.setItem('di_modelName', modelName);
-        alert('Conexão Neural Salva.');
-        closeModal();
-      });
-      modal.addEventListener('click', (e) => { if (e.target === modal) closeModal(); });
-    }
-
+    // Unified Panel Setup
     function setupTogglePanel() {
       const panel = document.getElementById('togglePanel');
       const btn = document.getElementById('toggleBtn');
       const closeBtn = document.getElementById('closePanelBtn');
       const saveBtn = document.getElementById('savePanelBtn');
+      
       const userInput = document.getElementById('userNameInput');
       const infodoseInput = document.getElementById('infodoseNameInput');
       const assistantChk = document.getElementById('assistantActiveCheckbox');
       const trainingChk = document.getElementById('trainingActiveCheckbox');
+      
       const fileInput = document.getElementById('trainingUpload');
       const importBtn = document.getElementById('importTrainingBtn');
       const exportBtn = document.getElementById('exportTrainingBtn');
-      const trainingNameEl = document.getElementById('trainingFileName');
+      
+      // New fields from Settings
+      const apiKeyInput = document.getElementById('apiKeyInputPanel');
+      const modelInput = document.getElementById('modelInputPanel');
 
       btn.addEventListener('click', () => {
         userInput.value = userName;
         infodoseInput.value = infodoseName;
         assistantChk.checked = !!assistantEnabled;
         trainingChk.checked = !!trainingActive;
+        
+        // Populate API/Model
+        apiKeyInput.value = apiKey;
+        modelInput.value = modelName;
+        
         panel.classList.add('active');
       });
+      
       closeBtn.addEventListener('click', ()=> panel.classList.remove('active'));
+      
       saveBtn.addEventListener('click', () => {
+        // Save basic info
         userName = userInput.value.trim();
         infodoseName = infodoseInput.value.trim();
         assistantEnabled = !!assistantChk.checked;
@@ -968,9 +926,18 @@
         localStorage.setItem('di_infodoseName', infodoseName);
         localStorage.setItem('di_assistantEnabled', assistantEnabled ? '1' : '0');
         localStorage.setItem('di_trainingActive', trainingActive ? '1' : '0');
+        
+        // Save API/Model
+        apiKey = apiKeyInput.value.trim();
+        modelName = modelInput.value.trim() || modelName;
+        localStorage.setItem('di_apiKey', apiKey);
+        localStorage.setItem('di_modelName', modelName);
+
         updateTopInfo();
         updateToggleUI();
         panel.classList.remove('active');
+        if(typeof showToaster === 'function') showToaster('Configurações Salvas', 'success');
+        else alert('Configurações Salvas.');
       });
 
       fileInput.addEventListener('change', (e) => {
@@ -1045,7 +1012,7 @@
       await loadInitialTraining();
       updateTopInfo();
       updateToggleUI();
-      setupSettings();
+      // setupSettings(); // REMOVED (Merged into TogglePanel)
       setupTogglePanel();
       setupCrystalModal();
 
@@ -1058,6 +1025,28 @@
           });
         }
       } catch(e){}
+
+      // Performance Button Logic (Toggle visual effects)
+      const perfBtn = document.getElementById('perfBtn');
+      const particlesEl = document.getElementById('particles-js');
+      const ambientEl = document.getElementById('ambientLight');
+      
+      if(perfBtn && particlesEl && ambientEl){
+        perfBtn.addEventListener('click', ()=>{
+          const isHidden = particlesEl.style.display === 'none';
+          if(isHidden) {
+            particlesEl.style.display = 'block';
+            ambientEl.style.opacity = '1';
+            perfBtn.classList.remove('perf-active');
+            if(typeof showToaster==='function') showToaster('Visual: Máximo', 'default');
+          } else {
+            particlesEl.style.display = 'none';
+            ambientEl.style.opacity = '0.3';
+            perfBtn.classList.add('perf-active');
+            if(typeof showToaster==='function') showToaster('Visual: Performance (Econômico)', 'default');
+          }
+        });
+      }
 
       // eventos básicos
       const sendBtn = document.getElementById('sendBtn');
@@ -1359,8 +1348,9 @@
           // SINCRONIZA AGORA para chamar callAI() sem esperar storage event
           apiKey = active.token;
           modelName = active.model || modelName;
-          const keyEl = document.getElementById('apiKeyInput'); if (keyEl) keyEl.value = apiKey;
-          const mEl  = document.getElementById('modelInput'); if (mEl) mEl.value = modelName;
+          // Se o painel estiver aberto, atualiza inputs
+          const keyEl = document.getElementById('apiKeyInputPanel'); if (keyEl) keyEl.value = apiKey;
+          const mEl  = document.getElementById('modelInputPanel'); if (mEl) mEl.value = modelName;
         }
       } catch(e){}
     };
@@ -1473,11 +1463,16 @@
     function handleStart(e) {
       if(e.target.tagName === 'INPUT' || e.target.tagName === 'BUTTON' || e.target.closest('.keys-card')) return;
       if(!state.isOrb && !state.isHud && !els.header.contains(e.target)) return;
+      
+      // Prevent default scrolling on mobile when interacting with card
+      if (state.isOrb) e.preventDefault();
+
       state.startX = e.clientX; state.startY = e.clientY; state.isDragging = false;
       state.timer = setTimeout(() => {
         if(state.isOrb) openManager();
         else if (!state.isHud) transmuteToOrb(e.clientX, e.clientY);
       }, 600);
+      
       if(state.isOrb) {
          try { els.card.setPointerCapture(e.pointerId); } catch(e){}
          const rect = els.card.getBoundingClientRect();
@@ -1493,6 +1488,8 @@
         if(state.timer) { clearTimeout(state.timer); state.timer = null; }
         if(state.isOrb) {
           state.isDragging = true;
+          // Ensure smooth tracking by using requestAnimationFrame if needed, 
+          // but direct update is usually responsive enough for simple drags
           els.card.style.left = (e.clientX - state.offsetX) + 'px';
           els.card.style.top = (e.clientY - state.offsetY) + 'px';
           els.card.style.transform = 'none';
@@ -1503,7 +1500,10 @@
     function handleEnd(e) {
       if(state.timer) { clearTimeout(state.timer); state.timer = null; }
       if(state.isDragging && state.isOrb) {
-        state.isDragging = false; snapOrb(e.clientX, e.clientY); return;
+        state.isDragging = false; 
+        try { els.card.releasePointerCapture(e.pointerId); } catch(err){}
+        snapOrb(e.clientX, e.clientY); 
+        return;
       }
       const dist = Math.hypot(e.clientX - state.startX, e.clientY - state.startY);
       if(dist < 10) {
@@ -1515,8 +1515,14 @@
     function transmuteToOrb(x,y) {
       if(navigator.vibrate) navigator.vibrate(50);
       els.card.classList.add('orb','closed'); els.card.classList.remove('content-visible');
-      els.card.style.left=(x-34)+'px'; els.card.style.top=(y-34)+'px';
+      // Center the orb on the finger (34px is half of 68px width)
+      els.card.style.left=(x-34)+'px'; 
+      els.card.style.top=(y-34)+'px';
+      
       state.isOrb=true; state.isHud=false;
+      // Pre-calculate offsets for immediate dragging if user continues moving
+      state.offsetX = 34; 
+      state.offsetY = 34;
     }
 
     function snapOrb(x,y) {
@@ -1619,7 +1625,7 @@
           const newKey = localStorage.getItem('di_apiKey') || '';
           if (newKey && newKey !== apiKey) {
             apiKey = newKey;
-            const keyEl = document.getElementById('apiKeyInput');
+            const keyEl = document.getElementById('apiKeyInputPanel');
             if (keyEl) keyEl.value = apiKey;
           }
         }
@@ -1628,7 +1634,7 @@
           const newModel = localStorage.getItem('di_modelName') || '';
           if (newModel && newModel !== modelName) {
             modelName = newModel;
-            const mEl = document.getElementById('modelInput');
+            const mEl = document.getElementById('modelInputPanel');
             if (mEl) mEl.value = modelName;
           }
         }
@@ -1729,13 +1735,8 @@
   })();
   </script>
   <!-- END: Dual Infodose Sync Patch -->
- <script>
-    if ('serviceWorker' in navigator) {
-      navigator.serviceWorker.register('./sw.js')
-        .then(() => console.log('Service Worker Registered'))
-        .catch(()=>{});
-    }
-  </script>
+
 </body>
 </html>
+
 
